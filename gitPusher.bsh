@@ -17,12 +17,21 @@ cd "$REPO_DIR"
 # Stage all changes (add new files, remove deleted files)
 git add -A
 
-# Commit changes (if any)
+# Check if there are any changes
 if git diff-index --quiet HEAD --; then
     echo "No changes to commit."
-else
-    git commit -m "$COMMIT_MSG"
+    exit 0
 fi
+
+# Show a summary of changes
+echo "The following changes will be committed:"
+git status -s
+
+# Wait for user confirmation
+read -p "Press Enter to commit and push, or Ctrl+C to abort..."
+
+# Commit changes
+git commit -m "$COMMIT_MSG"
 
 # Force push to remote
 git push origin main --force
