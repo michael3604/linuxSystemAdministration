@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sync-scripts.sh — mirror /scripts to GitHub
+# mirror /scripts to GitHub
 
 set -Eeuo pipefail
 
@@ -14,16 +14,15 @@ REPO_DIR="/scripts"
 
 cd "$REPO_DIR"
 
-# Reload .gitignore by clearing the index and re-adding everything respecting .gitignore
-git rm -r --cached . || true
-
-# Stage all files (including deletions)
+# Stage all changes (add new files, remove deleted files)
 git add -A
 
-# Commit
-git commit -m "$COMMIT_MSG" || {
-    echo "Nothing to commit"
-}
+# Commit changes (if any)
+if git diff-index --quiet HEAD --; then
+    echo "No changes to commit."
+else
+    git commit -m "$COMMIT_MSG"
+fi
 
 # Force push to remote
 git push origin main --force
