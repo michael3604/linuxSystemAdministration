@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# sync-scripts.sh — mirror /scripts to GitHub
+
+set -Eeuo pipefail
+
+# usage check
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <commit message>"
+    exit 1
+fi
+
+COMMIT_MSG="$*"
+REPO_DIR="/scripts"
+
+cd "$REPO_DIR"
+
+# Reload .gitignore by clearing the index and re-adding everything respecting .gitignore
+git rm -r --cached . || true
+
+# Stage all files (including deletions)
+git add -A
+
+# Commit
+git commit -m "$COMMIT_MSG" || {
+    echo "Nothing to commit"
+}
+
+# Force push to remote
+git push origin main --force
+
+echo "Local changes mirrored to GitHub successfully."
