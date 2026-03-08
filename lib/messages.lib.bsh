@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# messages library
+
+# Prevent double sourcing of this library
+[[ -n "${__MESSAGES_LIB_LOADED:-}" ]] && return 0
+__MESSAGES_LIB_LOADED=1
+
+# pushover setup
+__PUSHOVER_TOKEN=$(cat /root/keyfiles/pushover/pushover.token)
+__PUSHOVER_USERKEY=$(cat /root/keyfiles/pushover/pushover.userkey)
+export LC_CTYPE=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
+# Enable colors only if output is a terminal and NO_COLOR is not set
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+    C_RESET='\033[0m'
+    C_INFO='\033[0;32m'     # green
+    C_DEBUG='\033[0;36m'    # light blue / cyan
+    C_WARN='\033[1;33m'     # yellow
+    C_ERROR='\033[1;31m'    # red
+else
+    C_RESET=''
+    C_INFO=''
+    C_DEBUG=''
+    C_WARN=''
+    C_ERROR=''
+fi
+
+timestamp() {
+    date -u +"%Y-%m-%dT%H:%M:%SZ"
+}
+
+inf() {
+    echo -e "[ $(timestamp) ] ${C_INFO}INFO ${C_RESET} $*"
+}
+
+vrb() {
+    if [[ -n "${DEBUG_MODE:-}" ]]; then
+        echo -e "[ $(timestamp) ] ${C_DEBUG}DEBUG${C_RESET} $*"
+    fi
+}
+
+wrn() {
+    echo -e "[ $(timestamp) ] ${C_WARN}WARN ${C_RESET} $*" >&2 #send message
+    local msg
+    msg="$(hostname):$(basename -- "$0"):WARNG:$*"
+
+    if ! [[ -t 0 && -t 1 ]]; then # send to pushover only when running without TTY (terminal connected)
+      curl -s \
+        --form-string "token=$__PUSHOVER_TOKEN" \
+        --form-string "user=$__PUSHOVER_USERKEY" \
+        --form-string "priority=0" \
+        --form-string "message=$msg" \
+        https://api.pushover.net/1/messages.json \
+        > /dev/null || true
+    fi
+}
+
+err() {
+    echo -e "[ $(timestamp) ] ${C_ERROR}ERROR${C_RESET} $*" >&2
+
+    local msg
+    msg="$(hostname):$(basename -- "$0"):ERROR:$*"
+    if ! [[ -t 0 && -t 1 ]]; then # send to pushover only when running without TTY (terminal connected)
+      curl -s \
+        --form-string "token=$__PUSHOVER_TOKEN" \
+        --form-string "user=$__PUSHOVER_USERKEY" \
+        --form-string "priority=0" \
+        --form-string "message=$msg" \
+        https://api.pushover.net/1/messages.json \
+        > /dev/null || true
+    fi
+    exit 1
+}

@@ -1,0 +1,60 @@
+#!/bin/bash
+#defaults go here
+password=$(cat /root/emailer.password)
+helptext="sends emails if it finds warning files
+requires root privileges
+ usage: "$0" [-w|--warning] 
+  e.g.: "$0"
+ Options:
+  -w --warning creates a test warning and sends it."
+
+#load defaults
+arglongnames=( testwarning testerror)
+argshortnames=(w           e)
+argtypes=(     B           B)
+source /scripts/lib/scriptbootstrapper.bsh "$@" -S
+failuretypes=( error           warning)
+emailadresses=(nmrcloud@gmx.de nmrcloud@gmx.de)
+#emailadresses=(nmrcloud@web.de nmrcloud@gmx.de) #web.de does not work spam alert.
+smtpservers=(  smtp.gmx.de     smtp.gmx.de)
+#smtpservers=(  smtp.web.de     smtp.gmx.de) #web.de does not work. spam alert.
+
+if [[ "$testwarning" -ge 1 ]]; then
+    if [[ $loglevel -le 2 ]]; then
+	loglevel=2
+	info 3 "increasing log level to create warning message"
+    fi
+    if [[ "$log" -le 0 ]]; then
+	log=1
+	info 3 "activating log to create warning message"
+    fi
+    warning "testwarning"
+fi
+
+# fix pearl locale warning
+export LC_CTYPE=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
+for i in "${!failuretypes[@]}"; do
+    info 4 "============== failure type: ""${failuretypes[i]}"
+    for file in $(ls -d /var/logs.nmr/*."${failuretypes[i]}"); do
+	if [[ ! -f "$file".sent ]] ; then
+	    subject="$i"_$(basename "$file" | rev | cut -d'_' -f2- | rev) #cut date and extensions
+	    body=$(cat "$file")'\n'"$file"
+	    if [[ "${failuretypes[i]}" == "error" ]] ; then
+		logfile=$(echo "$file" | rev | cut -d'.' -f2- | rev).log.txt # cut .error and add .log.txt
+		if [[ -f "$logfile" ]]; then
+		    body="$body"\n"=== === last 25 lines of log file: === ==="\n$(cat "$logfile" | tail -25)
+		fi
+	    fi
+	    if [[ $(swaks --to "${emailadresses[i]}" --from "${emailadresses[i]}" --header 'Subject: '$subject'' --body "$body" \
+			  --server "${smtpservers[i]}" --port 587 --auth LOGIN --auth-user "${emailadresses[i]}" --auth-password "$password" -tls ) ]]; then
+		info 5 "$file" has been sent
+		touch "$file".sent
+	    else
+		warning "swaks reports error. aborting ""${failuretypes[i]}"
+		continue
+	    fi
+	fi
+    done
+done

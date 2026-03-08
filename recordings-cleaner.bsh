@@ -1,0 +1,65 @@
+#!/bin/bash
+title="Delete dated subfolders older than N days (folders must follow YYYY-MM-DD naming)"
+show_help() {
+echo $title
+cat << EOF
+Usage:
+  ./delete_old_recordings.sh [BASE_DIR] [DAYS] [--dry-run]
+
+Example:
+  $0 /temp/recordings 90
+  $0 /temp/recordings 35 --dry-run
+
+Options:
+  BASE_DIR   Path containing dated subfolders (default: /temp/recordings)
+  DAYS       Age threshold in days (default: 90)
+  --dry-run  Show what would be deleted without actually removing anything
+  --help     Show this help message
+EOF
+exit 0
+}
+
+#defaults
+set -euo pipefail
+source /scripts/lib/lock.lib.bsh
+source /scripts/lib/messages.lib.bsh
+source /scripts/lib/success.lib.bsh
+
+# === Argument parsing ===
+if [[ "${1:-}" == "--help" || "${2:-}" == "--help" || "${3:-}" == "--help" ]]; then
+    show_help
+fi
+
+inf "=== === $title === ==="
+
+BASE_DIR="${1:-/temp/recordings}"
+DAYS="${2:-90}"
+DRYRUN="${3:-}"
+
+today=$(date +%s)
+
+inf "Scanning '$BASE_DIR' for folders older than $DAYS days..."
+[[ "$DRYRUN" == "--dry-run" ]] && inf "Dry run mode enabled – nothing will be deleted."
+
+for dir in "$BASE_DIR"/*/; do
+    [ -d "$dir" ] || continue
+    folder_name=$(basename "$dir")
+
+    # Expect folder names like YYYY-MM-DD
+    if [[ "$folder_name" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+        folder_date=$(date -d "$folder_name" +%s 2>/dev/null || echo 0)
+        if (( folder_date > 0 )); then
+            age_days=$(( (today - folder_date) / 86400 ))
+            if (( age_days > DAYS )); then
+                if [[ "$DRYRUN" == "--dry-run" ]]; then
+                    inf "Would delete: $dir (age: $age_days days)"
+                else
+                    inf "Deleting: $dir (age: $age_days days)"
+                    rm -rf -- "$dir"
+                fi
+            fi
+        fi
+    fi
+done
+
+inf "=== === done === ==="

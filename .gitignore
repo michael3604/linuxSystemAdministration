@@ -1,0 +1,18 @@
+# temp
+*.tmp
+*.swp
+*~
+
+# logs
+*.log
+
+# secrets
+*.key
+*.pem
+
+# editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store

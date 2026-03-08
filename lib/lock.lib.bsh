@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# lock.bsh — robust flock-based locking library
+# Requires: bash ≥ 4.1, util-linux (flock)
+
+# Prevent double sourcing of this library
+[[ -n "${__LOCK_LIB_LOADED:-}" ]] && return 0
+__LOCK_LIB_LOADED=1
+
+# Default directory for runtime locks (volatile, cleared at boot, only set if not existing)
+: "${LOCK_BASE_DIR:=/run/lock}"
+
+# Internal state variables (do not modify outside this file)
+__LOCK_FD=""       # dynamically allocated file descriptor number
+__LOCK_FILE=""     # full path of active lock file
+
+# -----------------------------------------------------------------------------
+# lock [optional_suffix]
+#
+# Acquires an exclusive non-blocking flock.
+# Lock file name:
+#   /run/lock/<script>.lock
+#   /run/lock/<script>_<suffix>.lock
+#
+# Exits with code 1 if lock cannot be acquired.
+# -----------------------------------------------------------------------------
+lock() {
+
+    local suffix="${1:-}"                 # optional user-supplied suffix
+    local script                          # script base name (local scope)
+
+    # Ensure the lock base directory exists (create if missing)
+    mkdir -p "$LOCK_BASE_DIR" 2>/dev/null || {
+       echo "Cannot create lock directory: $LOCK_BASE_DIR" >&2
+       exit 1
+    }
+
+    script="$(basename "$0")"             # determine invoking script name
+
+    # Construct lock file path
+    if [[ -n "$suffix" ]]; then
+        __LOCK_FILE="${LOCK_BASE_DIR}/${script}_${suffix}.lock"
+    else
+        __LOCK_FILE="${LOCK_BASE_DIR}/${script}.lock"
+    fi
+
+    # Open lock file and allocate a free file descriptor dynamically.
+    # Bash stores the FD number in __LOCK_FD.
+    # The file is created if it does not exist.
+    exec {__LOCK_FD}>"$__LOCK_FILE" || {
+        echo "Cannot open lock file: $__LOCK_FILE" >&2
+        exit 1
+    }
+
+    # Try to acquire exclusive non-blocking lock.
+    # If another process holds the lock, exit immediately.
+    if ! flock -n "$__LOCK_FD"; then
+        echo "Lock already held: $__LOCK_FILE" >&2
+        exit 1
+    fi
+
+    # Write debugging information into the lock file.
+    # This does NOT affect locking (flock works on the FD).
+    # Purely informational.
+    {
+        echo "pid=$$"
+        echo "host=$(hostname)"
+        echo "started=$(date -Is)"
+    } 1>&"$__LOCK_FD"
+
+    # Ensure cleanup runs on:
+    #  - normal exit
+    #  - set -e abort
+    #  - SIGINT
+    #  - SIGTERM
+    #
+    # NOTE:
+    #  SIGKILL cannot be trapped.
+    #  However, kernel automatically releases flock when process dies.
+    trap __lock_cleanup EXIT INT TERM
+}
+
+# -----------------------------------------------------------------------------
+# unlock
+#
+# Explicitly releases lock and deletes lock file.
+# Safe to call multiple times.
+# -----------------------------------------------------------------------------
+unlock() {
+
+    # If no active lock, do nothing
+    [[ -z "${__LOCK_FD}" ]] && return 0
+
+    # Explicitly release flock (optional but clean)
+    flock -u "$__LOCK_FD" 2>/dev/null || true
+
+    # Close the dynamically allocated file descriptor.
+    # Closing the FD also releases the lock at kernel level.
+    exec {__LOCK_FD}>&-
+
+    # Remove the lock file (purely cosmetic; not required for correctness)
+    rm -f "$__LOCK_FILE" 2>/dev/null || true
+
+    # Reset internal state
+    __LOCK_FD=""
+    __LOCK_FILE=""
+}
+
+# -----------------------------------------------------------------------------
+# __lock_cleanup (internal)
+#
+# Triggered automatically via trap.
+# Ensures unlock on script termination.
+# -----------------------------------------------------------------------------
+__lock_cleanup() {
+    unlock
+}

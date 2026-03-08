@@ -1,0 +1,103 @@
+#!/bin/bash
+title="mounts encrypted backup HDDs"
+helptext="requires sudo
+usage: sudo "$0" <option>
+e.g.   sudo "$0" --open
+Options:
+--close    -c        close the decrypted HDD and unmount.
+--open     -o        open a decrypted HDD if available and mount it.
+--sysprep  -s        prepare this host for this script to run. install software, create mountpoints."
+
+#parametrization and variables
+arglongnames=( open close partprep sysprep)
+argshortnames=(o    c     p        s)
+argtypes=(     B1   B1    P1       B1) #types: FP=Free-parameter, P=Parameter, B=Boolean, R=Required, U=Uniqueifier, X=no log, V=minimum-verbosity)
+
+#load defaults
+source /scripts/lib/scriptbootstrapper.bsh "$@" --lock --needs-sudo
+source /scripts/lib/parameters.bsh backup
+
+#hddmounted=$statusfolder/$hostname",hdd-mounted"
+key=/root/backup-HDD-master.key
+hdds=(45f6cf1a-69ab-4f43-a641-f84ee88290f2  849679d9-e15c-452f-beb8-71fc6bda8fef)
+#     virtual external hdd for bak00-test   virtual external hdd for bak01-test
+hdds+=(ca52f43f-3e2c-46a6-8fc3-270a808e2144 02d502fb-685a-4338-8a68-2ee40109e437)
+#      2021-03-29 4 TB?                     2021-03-29 4 TB?
+hdds+=(f3be1e42-0e96-4529-be35-dd3d22e138dd 7ba2f3e5-4e79-43f8-82c3-b0c683cfe69b)
+#      2021-05-13 4 TB                      2024-02-10 4 TB
+hdds+=(7e9b8dfd-f439-4c57-8e38-dc36a1f0f7bb 7d8756a9-2aed-4c3e-9ee8-3c64f3e6f593)
+#      2021-05-19 4 TB                      2021-02-20C 2 TB
+hdds+=(1b559cb1-fb4d-4bcc-8366-3d38488e0322)
+
+#functions
+
+close () {
+    now
+    info 4 "unmounting external hdd (if present)..."
+    sudo umount "$backup_hdd" || true
+    sudo umount "$backup_hdd"-unmapped || true
+    sudo cryptsetup luksClose externalhdd || true
+    sudo losetup -d /dev/loop2 || true
+    [[ ! -e /dev/mapper/external-HDD ]] || error "backup hdd is still present!"
+    info 3 "external HDD unmounted."
+}
+if [[ $close == 1 ]]; then
+    close
+    exit
+fi
+
+open () {
+    now
+    if ! mountpoint -q "$backup_hdd" ; then
+	info 4 "mounting external hdd"
+	for hdd in "${hdds[@]}" x ; do
+	    if [[ -e /dev/disk/by-uuid/"$hdd" ]] ; then
+		break
+	    fi
+	done
+	[[ ! $hdd == x ]] || error no suitable partition found #checks if a hdd has been found
+	sudo losetup /dev/loop2 /dev/disk/by-uuid/$hdd #This step can cause problems on weak PSUs with RPi and big HDDs
+	sudo cryptsetup luksOpen /dev/loop2 external-HDD --key-file $key # open encrypted virtual device
+	#sudo mount /dev/mapper/external-HDD "$backup_hdd"-unmapped # mount encrypted virtual file system
+	sudo mount /dev/mapper/external-HDD "$backup_hdd" # mount encrypted virtual file system
+	#sudo bindfs -u user -g user "$backup_hdd"-unmapped "$backup_hdd" # maps file ownership to user
+	info 3 "external HDD mounted."
+	if [[ -f "$backup_data"/../UUID.txt ]]; then
+	    if [[ ! "$hdd" == $(cat "$backup_data"/../UUID.txt) ]]; then
+		warning UUID mismatch. writing correct UUID.txt
+		sudo mv "$backup_data"/../UUID.txt "$backup_data"/../UUID.txt.bak
+		echo "$hdd" > "$backup_data"/../UUID.txt
+	    fi
+	else
+	    info 4 "writing UUID information to basedir"
+	    echo "$hdd" > "$backup_data"/../UUID.txt
+	fi
+
+    else
+	info 3 "looks like the HDD is already mounted, no action taken"
+    fi
+    [[ -w "$backup_data" ]] || error "$backup_data" cannot be written to!
+}
+if [[ $open == 1 ]]; then
+    open
+    exit
+fi
+
+sysprep () {
+    echo "installing software..."
+    sudo apt install -y cryptsetup #bindfs
+    echo "preparing mount point..."
+    sudo mkdir -p "$backup_hdd"
+    #sudo mkdir -p "$backup_hdd"-unmapped
+    [[ -z $(ls -A "$backup_hdd") ]] || error "mount point for backup_hdd is not empty"
+    sudo chattr +i "$backup_hdd"
+    #sudo chattr +i "$backup_hdd"-unmapped
+    [[ -z $(ls -A "$backup_hdd"-unmapped) ]] || error "mount point for backup_hdd is not empty"
+    echo "done."
+}
+if [[ $sysprep -eq 1 ]]; then
+    sysprep
+    exit
+fi
+
+error "no option provided. See --help"

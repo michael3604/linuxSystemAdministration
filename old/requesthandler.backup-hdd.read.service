@@ -1,0 +1,15 @@
+[Unit]
+Description=waits for requests to read the backup disk and handles mounts and unmounts
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/scripts/lib/requesthandler.bsh --request backup-hdd,read --start "/scripts/hdd-mounter.bsh --open"  --stop "/scripts/hdd-mounter.bsh --close" --needs-sudo
+KillMode=process
+Restart=on-failure
+RestartSec=5s
+
+
+[Install]
+WantedBy=multi-user.target

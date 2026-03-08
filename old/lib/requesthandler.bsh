@@ -1,0 +1,53 @@
+#!/bin/bash
+# defaults
+start=
+stop=
+exclusive=
+arglongnames=( start stop exclusive period request)
+argshortnames=(a     z    e         p      r      )
+argtypes=(     P     P    B         P      FPRU   )
+source /scripts/lib/scriptbootstrapper.bsh "$@"
+
+if [[ $hostname == *test ]]; then
+	 period=2
+else
+	 period=10
+fi
+	 
+
+
+# request handling loop
+while : ; do
+    # handle requests
+    for i in $(ls /status/*@$hostname:$request 2> /dev/null ); do
+	requester=$(echo "$i" | cut -d'/' -f3- | cut -d'@' -f1)
+	if [[ -f /status/$scriptname@$requester:$request.ok ]] ; then
+	    info 3 request $request has already been granted. continuing...
+	    continue
+	fi
+	if [[ -f /status/$scriptname@*:$request.ok ]] && [[ $exclusive -ge 1 ]] ; then # exclusivity check
+	    info 3 exclusive request $request blocked by $i. continuing...
+	    continue
+	fi
+	info 3 handling request ...
+	eval $start
+	touch /status/$scriptname@$requester:$request.ok # confirm request
+	info 3 request handled.
+    done
+    # handle unrequests
+    for i in $(ls /status/$scriptname@*:$request.ok 2> /dev/null ); do
+	requester=$(echo "$i" | cut -d'/' -f3- | cut -d'@' -f2- | rev | cut -d':' -f2- | rev)
+	if ! ls /status/$requester@$hostname:$request &> /dev/null ; then
+	    info 3 $requester no longer requests $request
+	    rm /status/$scriptname@$requester:$request.ok
+ 	    if ! ls /status/*@$hostname:$request &> /dev/null ; then
+		info 3 $request is no longer requested by anybody. triggering stop action
+		if [[ ! -f /status/$scriptname@$requester:$request.ok ]]; then
+		    eval $stop
+		fi
+	    fi
+	fi
+    done
+    info 4 sleeping ...
+    sleep $period
+done

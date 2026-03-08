@@ -1,0 +1,6 @@
+#!/bin/bash
+
+python3 -m venv /home/lena/.venv
+source /home/lena/.venv/bin/activate
+python3 -m pip install --upgrade icloudpd
+icloudpd --directory /home/lena/data/backup-lena/icloud/Photos --username magdalena.neumeier@gmail.com

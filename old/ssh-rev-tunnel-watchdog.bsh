@@ -1,0 +1,18 @@
+#!/bin/bash
+title="watchdog for autossh rev port forwarder. tests a connection via services-lxc back to the host."
+#defaults go here
+source /scripts/lib/scriptbootstrapper.bsh "$@" --needs-sudo
+source /scripts/lib/parameters.bsh sshtunnel "$hostname"
+
+#processing
+while : ; do
+    if [[ $(ssh -J "$jumpuser"@"$extjumphost":"$extjumpport" user@localhost -p "$intjumpport" cat /etc/hostname ) == $(hostname) ]]; then #ToDo: tarex?
+	info 4 tunnel seems to work...
+	touch /status/"$hostname".ssh-rev-tunnel.iamalive
+	sleep 300
+    else
+	info 3 ssh rev tunnel connection problem. restarting service...
+	systemctl restart ssh-rev-tunnel.service
+	sleep 30
+    fi
+done

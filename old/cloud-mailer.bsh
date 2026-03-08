@@ -1,0 +1,23 @@
+#!/bin/bash
+
+#load defaults
+source /scripts/lib/scriptbootstrapper.bsh "$@" --needs-sudo
+
+password=$(cat /root/emailer.password)
+emailadresses=( "nmrcloud@gmx.de"               )
+folders=(       "/nextcloud/Marie/files/Photos" )
+times=(           7                             )
+
+for i in "${!folders[@]}"; do
+    info 4  "=== scanning folder: ""${folders[i]}"
+    if [[ ! -f "${folders[i]}" ]] ; then
+	if [[ -z $(sudo find "${folders[i]}" -mtime -"${times[i]}") ]]; then
+	    info 3 "${folders[i]}" has not recieved new files in "${times[i]}" days. writing warning email to "${emailadresses[i]}"
+	    swaks --to "${emailadresses[i]}" --from "nmrcloud@gmx.de" --header 'Subject: no new files uploaded' \
+		  --body 'no files have been added to '"${folders[i]}"' in the past '"${times[i]}"' days. Maybe cloudsync is broken?'  \
+		  --server "smtp.gmx.de" --port 587 --auth LOGIN --auth-user "nmrcloud@gmx.de" --auth-password "$password" -tls
+	fi
+    else
+	warning "${folders[i]}"" could not be found."
+    fi
+done

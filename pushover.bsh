@@ -1,0 +1,12 @@
+#!/bin/bash
+set -euo pipefail
+#defaults go here
+
+#preparation: only keyfiles. DO NOT INSTALL apt get pushover
+
+message="$@"
+token=$(cat /root/keyfiles/pushover/pushover.token)
+userkey=$(cat /root/keyfiles/pushover/pushover.userkey)
+export LC_CTYPE=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+curl -s --form-string "token="$token"" --form-string "user="$userkey"" --form-string "priority=0" --form-string "message=""$(hostname)"": ""$message" https://api.pushover.net/1/messages.json > /dev/null 

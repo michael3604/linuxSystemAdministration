@@ -1,0 +1,43 @@
+#!/bin/bash
+title="backup of ZFS snapshots to off site backup servers"
+#defaults go here:
+helptext="backup of the ZFS tank to remote system using backup snapshots and prepared backup servers
+ requires root privileges, ZFS Backup Snapshots and a remote backup machine of type bak*
+ usage: "$0" [options] [--port|-p] <port> <username>@<target-computer>
+  e.g.: "$0" user@services-lxc -o -p 42001
+        makes a versioned backup of ZFS tank to the remote backup HDD on services-lxc using port 42001
+        "$0" /tank user@localhost:/testtarget -o \"-J ssh-butler@services-lxc-test -p 21000\"
+ Options:
+  -p --port  <port>  port"
+
+#/scripts/bak-data2remoteHDD.bsh /tank user@localhost:/testtarget -o "-J ssh-butler@services-lxc-test -p 21000"
+
+# parametrization and defaults
+arglongnames=( src tgt  )
+argshortnames=(--- ---  )
+argtypes=(     FPR FPRU )
+source /scripts/lib/scriptbootstrapper.bsh "$@" --needs-sudo --lock #lock is not strictly necessary, causes less chaos.
+source /scripts/lib/call.bsh
+source /scripts/lib/tarex.bsh user@"$tgt"
+
+[[ ! "$src" == */ ]] || error source cannot have trailing slashes.
+#[[ ! "$tgt" == */ ]] || error target cannot have trailing slashes.
+
+sources_zfs=( $(ls "$src") ) #gets list of sources
+info 4 "sources: " "${sources_zfs[@]}"
+request "$tgt" backup-hdd,read
+request "$tgt" backup-hdd,write --exclusive ### ToDo: rewrite so write access exclusivity is detected automatically
+tarex call /scripts/free-space.bsh /mnt/backup-hdd/
+for fs in "${sources_zfs[@]}"; do
+		baksrc=$(ls -d "$src"/"$fs"/.zfs/snapshot/backup_????-??-??T??:??:??-??? | tail -n 1) #find youngest snapshot, returns complete path
+		snapshot=$(echo "$baksrc" | rev | cut -d'/' -f1 | rev ) #gets the folder name of the snapshot
+		info 4 ""
+		info 3 "   Filesystem: " "$fs"
+		info 4 "   Snapshot:   " "$snapshot"
+		info 5 "   Target host:" "$tgt"
+		call /scripts/backup.bsh "$baksrc" user@"$tgt"":/mnt/backup-hdd/data/""$fs" --no datesubdir --no freespace
+done
+tarex call /scripts/free-space.bsh /mnt/backup-hdd/
+
+#ToDo: trigger btrfs snapshot (maybe per cron on backup-machine)
+#ToDo: separate versioning for the folders, because a production filesystem can be deleted, is not beeing backed up and still needs to be versioned

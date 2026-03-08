@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# syncs to logs to main server
+
+# requires:
+# - crontab (once every 10 min) as user (see below)
+# - passwordless ssh with the server (user sensitive).
+
+source /scripts/lib/scriptbootstrapper.bsh "$@" --needs-sudo
+
+if [[ $hostname == *"-lxc"* ]] || [[ $hostname == *"-lxc"* ]]; then
+	 error log syncing on $hostname makes no sense.
+fi
+
+source /scripts/lib/parameters.bsh ssh
+
+while : ; do
+    if ls "/status/""$hostname"".sync-logs" > /dev/null 2>&1 ; then
+	rm "/status/""$hostname"".sync-logs"
+	sleep 2
+	while : ; do
+	    if rsync --omit-dir-times --no-perms -tr --exclude "archive" --no-owner -e 'ssh -p '"$port"'' /var/logs.nmr/ ssh-butler@$host:/var/logs.nmr/ ; then
+		info 3 logs uploaded.
+		break
+	    else
+		info 3 log upload failed. retrying...
+	    fi
+	    sleep 1m
+	done
+    fi
+    sleep 30
+done

@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# "path:min_free_percent:required"
+CHECKS=(
+  "/:25:1"
+  "/tank:15:0"
+  "/temp:25:0"
+)
+
+get_fs_type() {
+    findmnt -n -o FSTYPE --target "$1"
+}
+
+check_normal_fs() {
+    local path="$1"
+    local min_free="$2"
+
+    used=$(df -P "$path" | awk 'NR==2 {gsub("%",""); print $5}')
+    free=$((100 - used))
+
+    if (( free < min_free )); then
+        echo "CRITICAL: $path only ${free}% free (min ${min_free}%)"
+        status=1
+        sudo /scripts/pushover.bsh "CRITICAL: $path only ${free}% free (min ${min_free}%)"
+    else
+        echo "OK: $path has ${free}% free"
+    fi
+}
+
+check_zfs_pool() {
+    local mount="$1"
+    local min_free="$2"
+
+    # Get pool name from mountpoint
+    pool=$(zfs list -H -o name,mountpoint | awk -v m="$mount" '$2==m {print $1; exit}')
+    pool=${pool%%/*}
+
+    if [[ -z "$pool" ]]; then
+        sudo /scripts/pushover.bsh "CRITICAL: cannot determine ZFS pool for $mount"
+    fi
+
+    used=$(zpool list -Hp -o capacity "$pool" | tr -d '%')
+    free=$((100 - used))
+
+    if (( free < min_free )); then
+        sudo /scripts/pushover.bsh "CRITICAL: ZFS pool $pool only ${free}% free (min ${min_free}%)"
+    else
+        echo "OK: ZFS pool $pool has ${free}% free"
+    fi
+}
+
+status=0
+for entry in "${CHECKS[@]}"; do
+    IFS=":" read -r path min required <<< "$entry"
+
+    if [[ ! -e "$path" ]]; then
+        if [[ "$required" == "1" ]]; then
+            /scripts/pushover.bsh "CRITICAL: required path $path missing"
+            status=1
+        else
+            echo "SKIP: $path not present"
+        fi
+        continue
+    fi
+
+    fstype=$(get_fs_type "$path")
+
+    if [[ "$fstype" == "zfs" ]]; then
+        check_zfs_pool "$path" "$min"
+    else
+        check_normal_fs "$path" "$min"
+    fi
+done
+
+[[ $status -lt 1 ]] || exit 1

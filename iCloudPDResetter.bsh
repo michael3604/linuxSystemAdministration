@@ -1,0 +1,7 @@
+#!/bin/bash
+if ! [[ "$(whoami)" == "user76" ]]; then
+    echo "Not running as user76"
+    exit 1
+fi
+
+lxc exec MainICloudPD -- sudo -u lena ls /home/lena/iCloudPDDownloaderResetMFA.bsh

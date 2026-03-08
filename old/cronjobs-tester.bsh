@@ -1,0 +1,10 @@
+#!/bin/bash
+source /scripts/lib/scriptbootstrapper.bsh "$@" --needs-sudo
+source /scripts/lib/call.bsh
+
+call /scripts/cronjobs.bsh -i 15min
+call /scripts/cronjobs.bsh -i hourly
+call /scripts/cronjobs.bsh -i daily
+call /scripts/cronjobs.bsh -i weekly
+call /scripts/cronjobs.bsh -i monthly
+call /scripts/cronjobs.bsh -i quarterly

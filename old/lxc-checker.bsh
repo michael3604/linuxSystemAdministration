@@ -1,0 +1,66 @@
+#!/bin/bash
+#defaults go here
+helptext="basic example and template for scripts
+requires root privileges
+ sends spaceships from one planet to one or more celestial bodies.
+ usage: "$0" [options] [--type|-t] [spaceshiptype] start target[s]
+  e.g.: "$0" -t rocket earth moon mars
+        sends a rocket each from earth to moon and mars
+ Options:
+  -t --type  [type]  space ship type (required)
+     --color [color] space ship color, defaults to ""$color""
+  -r --return        sends the space craft on a return voyage.
+     --testuniqueflag
+     --testuniquparameter
+     --testerror
+     --testerror2
+     --testwarning
+     --testcall"
+
+#load defaults
+source /scripts/lib/scriptbootstrapper.bsh "$@"
+
+while : ; do
+
+    if [[ $(sudo -u user76 lxc-ls -f | grep services-lxc | grep RUNNING) == services-lxc* ]]; then # check if services-lxc is supposed to run
+	info 5 services-lxc should be running. Proceeding with checks...
+
+	info 5 checking if container can be connected to...
+	if ! [[ $(sudo -u user76 lxc-unpriv-attach -n services-lxc cat /etc/hostname) == "services-lxc" ]] ; then #check if it can be connected to and restart if necessary
+	    warning "services-lxc cannot be connected to and is beeing restarted!"
+	    sudo -u user76 lxc-stop -n services-lxc || true
+	    sudo -u user76 lxc-unpriv-start -n services-lxc
+	else
+	    info 5 container seems fine.
+	fi
+
+	if false ; then ### bak01-problems
+	### if find /status/bak01.iamalive -mmin -3; then #check if bak01 is alive and reporting in
+	    info 5 services-lxc should be running. Proceeding with checks...
+	    if ! ssh -o CheckHostIP=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -J ssh-butler@services-lxc -p 21000 user@localhost touch /status/bak01.tunnel.iamalive ; then #check if tunnel not is working
+		warning "services-lxc does not tunnel to bak01. restarting..."
+		sudo -u user76 lxc-stop -n services-lxc || true
+		sudo -u user76 lxc-unpriv-start -n services-lxc
+	    else
+		info 5 tunnel seems fine.
+	    fi
+	fi
+    else
+	info 5 services-lxc does not seem to be requested to run.
+	
+    fi
+
+    if [[ $(sudo -u user76 lxc-ls -f | grep webserver-lxc | grep RUNNING) == webserver-lxc* ]]; then # check if services-lxc is supposed to run
+    info 5 webserver-lxc should be running. Proceeding with checks...
+	if ! [[ $(sudo -u user76 lxc-unpriv-attach -n webserver-lxc cat /etc/hostname) == "webserver-lxc" ]] ; then #check if it can be connected to and restart if necessary
+	    warning "webserver-lxc cannot be connected to and is beeing restarted!"
+	    sudo -u user76 lxc-stop -n webserver-lxc || true
+	    sudo -u user76 lxc-unpriv-start -n webserver-lxc
+	else
+	    info 5 container seems fine.
+	fi
+	
+    fi
+    info 5 waiting for 30s
+    sleep 30
+done

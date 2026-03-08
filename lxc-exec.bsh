@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Check if a command is provided
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <command>"
+    exit 1
+fi
+
+cmd="$*"
+
+# Loop over all running containers
+for container in $(lxc list | awk '/RUNNING/ {print $2}'); do
+    echo "==> Running on container: $container"
+    lxc exec "$container" -- bash -c "$cmd"
+done

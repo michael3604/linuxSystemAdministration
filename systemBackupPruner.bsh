@@ -1,0 +1,162 @@
+#!/bin/bash
+set -euo pipefail
+
+source /scripts/lib/lock.lib.bsh
+source /scripts/lib/messages.lib.bsh
+source /scripts/lib/success.lib.bsh
+
+lock
+
+BACKUP_ROOT="/tank/backup/system-backups/main"
+SNAPSHOT_ROOT="/mnt/root-snapshots"
+
+inf "=== === Pruning System Backups === ==="
+
+###############################################################################
+# Safety-checked mark-for-deletion
+###############################################################################
+mark_delete() {
+    local dir
+    dir="$(readlink -f -- "$1")"
+
+    if [[ "$dir" != "$BACKUP_ROOT/"* ]]; then
+        err "Refusing unsafe path: $dir"
+        return 1
+    fi
+
+    if [[ ! -d "$dir" ]]; then
+        wrn "Skipping non-directory: $dir"
+        return 0
+    fi
+
+    if [[ "$dir" == *.deleteMe ]]; then
+        vrb "Already marked: $dir"
+        return 0
+    fi
+
+    inf "Marking for deletion: $dir"
+    mv -- "$dir" "$dir.deleteMe"
+}
+
+###############################################################################
+# Permanent delete (second phase)
+###############################################################################
+final_delete() {
+    local dir
+    dir="$(readlink -f -- "$1")"
+
+    if [[ "$dir" != "$BACKUP_ROOT/"* ]]; then
+        err "Refusing unsafe path: $dir"
+        return 1
+    fi
+
+    inf "Permanently deleting: $dir"
+    rm -rf -- "$dir"
+}
+
+###############################################################################
+# Pruning helper (phase 1)
+###############################################################################
+prune() {
+    local mtime="$1"
+    shift
+
+    while IFS= read -r -d '' dir; do
+        mark_delete "$dir"
+    done < <(
+        find "$BACKUP_ROOT" \
+            -mindepth 1 -maxdepth 1 \
+            -type d \
+            -mtime "$mtime" \
+            ! -name '*.deleteMe' \
+            "$@" \
+            -print0
+    )
+}
+
+###############################################################################
+# Safety guard: ensure at least 10 valid backups remain
+###############################################################################
+validate_minimum_backups() {
+    local count
+
+    count=$(find "$BACKUP_ROOT" \
+        -mindepth 1 -maxdepth 1 \
+        -type d \
+        ! -name '*.deleteMe' \
+        -mtime -15 \
+        | wc -l)
+
+    inf "Intending to keep $count backups"
+
+    if (( count < 10 )); then
+        err "Retention guard triggered: fewer than 10 recent backups remain. Aborting permanent deletion."
+    fi
+}
+
+###############################################################################
+# Safety guard: ensure that not too many backups are deleted at once
+###############################################################################
+validate_maximum_backups() {
+    local count
+
+    count=$(find "$BACKUP_ROOT" \
+        -mindepth 1 -maxdepth 1 \
+        -type d \
+        -name '*.deleteMe' \
+        | wc -l)
+
+    inf "Intending to delete $count backups"
+
+    if (( count > 5 )); then
+        err "Retention guard triggered: to many deletions. Aborting permanent deletion. Please check an delete manually"
+    fi
+}
+
+
+###############################################################################
+# Phase 1: Mark old backups
+###############################################################################
+
+inf "Pruning daily backups"
+
+prune +14 \
+    ! -name '*-01T*' \
+    ! -name '*-10T*' \
+    ! -name '*-20T*'
+
+inf "Pruning 10-daily backups"
+prune +90 \
+    ! -name '*-01T*'
+
+inf "Pruning monthly backups"
+prune +800 #keep last 2+ years
+
+###############################################################################
+# Phase 2: Safety validation
+###############################################################################
+
+validate_minimum_backups
+validate_maximum_backups
+
+###############################################################################
+# Phase 3: Permanent deletion of marked backups
+###############################################################################
+
+inf "Permanent deletion of *.deleteMe backups"
+
+while IFS= read -r -d '' dir; do
+    final_delete "$dir"
+done < <(
+    find "$BACKUP_ROOT" \
+        -mindepth 1 -maxdepth 1 \
+        -type d \
+        -name '*.deleteMe' \
+        -print0
+)
+
+inf available backups:
+ls "$BACKUP_ROOT"
+
+success
+inf "=== === done === ==="

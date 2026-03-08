@@ -1,0 +1,19 @@
+#!/bin/bash
+v_local=$(lsb_release -r | awk '{print $2}')
+id=$(lsb_release -i | awk '{print $3}')
+
+case $id in
+ Debian)
+  v_remote=$(curl -s ftp://ftp.halifax.rwth-aachen.de/debian-cd/ | grep current[^-] | awk '{print $11}' | cut -f1 -d".")
+  ;;
+ *)
+  echo "local distribution " $id " unknown"
+  exit 1
+  ;;
+esac
+
+if [[ $v_remote == $v_local ]]; then
+ echo "local and remote versions are the same"
+else
+ echo "local and remote versions are not the same"
+fi

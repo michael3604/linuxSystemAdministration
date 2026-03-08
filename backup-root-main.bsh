@@ -1,0 +1,56 @@
+#!/bin/bash
+set -euo pipefail
+
+source /scripts/lib/lock.lib.bsh       # provides: lock
+source /scripts/lib/messages.lib.bsh   # provides: vrb, inf, wrn, err
+source /scripts/lib/success.lib.bsh    # provides success file handler
+
+inf === === Backup of Snapshot of Root Partition === ===
+
+lock
+
+BACKUP_ROOT="/tank/backup/system-backups/main"
+SNAPSHOT_ROOT="/mnt/root-snapshots"
+
+###############################################################################
+# Get newest entry by mtime (no ls parsing)
+###############################################################################
+get_newest_entry() {
+    local dir="$1"
+
+    find "$dir" -mindepth 1 -maxdepth 1 -printf '%T@ %f\n' \
+        | sort -n \
+        | tail -n1 \
+        | awk '{print $2}'
+}
+
+###############################################################################
+# Backup
+###############################################################################
+
+source_basename="$(get_newest_entry "$SNAPSHOT_ROOT" || true)"
+lastbak_basename="$(get_newest_entry "$BACKUP_ROOT" || true)"
+
+inf "Source snapshot: ${source_basename:-<none>}"
+inf "Last backup: ${lastbak_basename:-<none>}"
+
+if [[ -d "$BACKUP_ROOT/$source_basename" ]]; then
+  err "$BACKUP_ROOT/$source_basename" exists, assuming backup has already happened
+fi
+
+inf "Starting backup to inwork folder"
+
+# rsync
+ rsync -aHAXSv \
+   --exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found"} \
+   --delete \
+   "$SNAPSHOT_ROOT/$source_basename/" \
+   "$BACKUP_ROOT/$source_basename.inwork/"
+
+inf "Moving backup from inwork to final destination"
+
+ mv "$BACKUP_ROOT/$source_basename.inwork" \
+    "$BACKUP_ROOT/$source_basename"
+
+success
+inf === === done === ===

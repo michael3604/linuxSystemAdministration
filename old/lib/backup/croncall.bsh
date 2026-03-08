@@ -1,0 +1,10 @@
+#!/bin/bash
+
+source /scripts/lib/parameters.bsh hostclass
+
+croncall () {
+	 if [[ "${hostclass[@]}" =~ "$2" ]]; then
+		  shift
+		  eval "$@"
+	 fi
+}

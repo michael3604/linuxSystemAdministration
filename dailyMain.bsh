@@ -1,0 +1,94 @@
+#!/bin/bash
+
+source /scripts/lib/argParser.lib.bsh 
+source /scripts/lib/lock.lib.bsh
+source /scripts/lib/messages.lib.bsh
+source /scripts/lib/success.lib.bsh
+
+lock
+
+mkdir -p /var/log/nmrCloud
+
+### preprocessing
+inf "================= starting daily tasks ================="
+# use api to set maintenance mode to 2 (2 = do not disturb, 1 = busy, 0 = available)
+/scripts/backup-borg.bsh prepare
+
+inf "=== snapshots and local backups ==="
+inf "getting list of containers and stopping them"
+containers=$(sudo -u user76 /snap/bin/lxc ls -cns | grep RUNNING | awk '{print $2}') # get a list of all running containers
+containersDocker=$(docker ps -q) # get a list of all running containers
+docker stop $containersDocker
+for i in $containers; do inf "stopping" $i; sudo -u user76 /snap/bin/lxc stop $i ; done
+inf "all containers stopped"
+inf "create root snapshot"
+/scripts/btrfs-snapshot-manager.py
+if [ "$(date +%u)" -eq 3 ]; then
+    inf "Not touching touched-daily file, a warning should arrive shortly..."
+else
+    vrb "touching testfile for future validation"
+    sudo touch /tank/nextcloudData/touchedDaily
+fi
+inf "creating snapshots"
+/scripts/zfs-snapshot-manager.py
+/scripts/backup-borg.bsh snapshot
+inf "restarting containers"
+for i in $containers; do echo "starting" $i; sudo -u user76 /snap/bin/lxc start $i ; done && echo "...done"# start all containers previously stopped
+docker start $containersDocker
+### ToDo: Check if nextcloud is running. maybe a public link and wget a file?
+
+inf "=== backup to external HDD ==="
+sudo /scripts/external-HDD-mounter.bsh
+sudo /scripts/external-HDD-mount-checker.bsh &
+sudo /scripts/backup-simple.bsh || wrn "local backup went wrong."
+sudo /scripts/external-HDD-unmounter.bsh || wrn "unmounting of local HDD went wrong"
+
+inf "=== system maintenance ==="
+inf checking log folder size
+du -sm /var/log | awk '$1 < 500 {exit 0} {exit 1}' || wrn "log files are getting too big"
+inf deleting old log files
+find /var/log/nmrCloud/ -type f -mtime +30 -delete
+inf backing up crontab
+cp /etc/crontab /scripts/
+### echo "upgrading nextcloud apps" && sudo -u user76 /snap/bin/lxc exec nextcloud-lxc -- sudo docker exec --user www-data nextcloud-aio-nextcloud php /var/www/html/occ app:update --all
+inf "validating photo downloads"
+[[ ! -z `sudo find "/tank/mediaPool/Phone Michael" -mtime -7` ]] || wrn "Michael has no recent media uploads"
+[[ ! -z `sudo find "/tank/mediaPool/iCloud/" -mtime -7` ]] || wrn "Lena has no recent media uploads"
+###temp [[ ! -z `find /tank/nextcloudData/maria/files/SofortUpload -mtime -21` ]] || /scripts/pushover.bsh "Maria has no recent media uploads"
+###temp [[ ! -z `find /tank/nextcloudData/lois/files/SofortUpload -mtime -21` ]] || /scripts/pushover.bsh "Lois has no recent media uploads"
+[[ ! find /temp/recordings -type f -mtime -3 -print -quit | grep -q . ]] || wrn "no young recordings found!" ###ToDo: check directly during GZSZ with tighter timeframe
+inf "removing old backups of scripts made by editors"
+find /scripts -maxdepth 1 -mindepth 1 -name "*~*" -type f -mtime +3 -exec rm {} \;
+find /scripts -maxdepth 1 -mindepth 1 -name "*#*" -type f -mtime +3 -exec rm {} \;
+find /scripts -maxdepth 1 -mindepth 1 -name ".save" -type f -mtime +3 -exec rm {} \;
+
+inf "removing old backups of lightroom"
+find "/tank/mediaPool/Lightroom/Lightroom Catalogue Backups/" -maxdepth 1 -name "*20*" | sort | head -n -5 | while IFS= read -r dir; do
+    inf removing "$dir"
+    rm -rf "$dir"
+done
+/scripts/systemBackupPruner.bsh
+inf "removing old recordings"
+/scripts/recordings-cleaner.bsh
+inf "removing old system backups"
+find /tank/backup/system-backups/main -maxdepth 1 -mindepth 1 -mtime +90 -exec rm -r {} \;
+inf "downloading Lenas iCloud"
+( sudo -u user76 /snap/bin/lxc exec mainICloudPD -- sudo -u lena /home/lena/iCloudPDDownloader.bsh )  || sudo /scripts/pushover.bsh "lenas icloud error. 2FA reset required?"
+( sudo -u user76 /snap/bin/lxc exec mainGoogleBackup -- /root/googleBackup.bsh ) || sudo /scripts/pushover.bsh "google backup error"
+inf "verifiying google Backup"
+/scripts/googleEmailBackupValidator.bsh
+/scripts/freeSpace.bsh || sudo /scripts/pushover.bsh "freeSpace error"
+### chown of iCloudPD files not neccessary, because users of both containers happen to have the same uid. otherwise use either --shift in lxc devices or chown with groups.
+inf scrubbing root
+btrfs scrub start -B / # scrub in foreground and display errors, ToDo: grep for problems
+inf "backing up main root"
+/scripts/backup-root-main.bsh
+/scripts/os-upgrader.bsh
+###ToDo: start ext HDD scrubber here but in the background, and not on mondays or fridays
+sleep 12h #uncomment this line to delay the off-site-backup if required.
+/scripts/backup-borg.bsh backup
+/scripts/backup-borg.bsh prune
+### postprocessing
+# monthly zfs scrubber
+success
+inf "================= completed ================="

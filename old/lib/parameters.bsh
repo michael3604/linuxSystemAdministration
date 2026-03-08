@@ -1,0 +1,79 @@
+#!/bin/bash
+
+while [[ -n ${1:-} ]]; do
+    case $1 in
+		  servers)
+				if [[ $hostname == *"-test"* ]]; then #adds production machines if parent script runs on production machine
+					 servers=("rec01-test" "bak01-test" "bak00-test" "disks-test" "services-lxc-test")
+				else
+				    servers=("bak01" "disks" "rec01" "paper" "webserver-lxc" "services-lxc") #bak00 removed on 2024-10-05
+				fi
+				for i in "${servers[@]}"; do
+					 if [[ $i != $hostname ]]; then
+						  other_servers=( "${other_servers[@]}" "$i" )
+					 fi
+				done
+				;;
+		  backup)
+				backup_container_basedir=/backup-container
+				backup_containers=/sysbaks
+				container_name=$hostname-backup.img
+				container=$backup_container_basedir/$container_name
+				target_sysbaks=/mnt/hdd/sysbaks
+				backup_hdd=/mnt/backup-hdd
+				backup_data=$backup_hdd/data
+     			;;
+		  sshtunnel) #syntax: source /scripts/lib/parameters.bsh sshtunnel bak00-test
+				[[ -n $2 ]] || error parameter import: "$1" : parameter missing
+				targethost=$(echo "$2" | cut -d'@' -f2- | rev | cut -d':' -f2- | rev)
+				case "$targethost" in
+				    bak01*)
+					intjumpport=21000
+					;;
+				    bak02*)
+					intjumpport=21001
+					;;
+				    *)
+					error "$targethost" does not use a tunnel.
+					;;
+				esac
+				jumpuser="ssh-butler"
+				extjumphost="nmr.goip.de"
+				case $hostname in
+					 *test)
+						  intjumphost=services-lxc-test
+						  extjumpport=49022
+						  ;;
+					 *)
+						  intjumphost=services-lxc
+						  extjumpport=48022
+						  ;;
+				esac
+				shift
+				;;
+		  ssh) #handles connections to services-lxc
+				if [[ $hostname == *"test" ]]; then
+					 if [[ $hostname == bak* ]] && [[ ! $hostname == bak00-test ]]; then
+						  host="nmr.goip.de"
+						  port=49022
+					 else
+						  host="services-lxc-test"
+						  port=22
+					 fi
+				else
+					 if [[ $hostname == bak* ]] && [[ ! $hostname == bak00 ]]; then
+						  host="nmr.goip.de"
+						  port=48022
+					 else
+						  host="services-lxc"
+						  port=22
+					 fi
+				fi
+				;;
+		  *)
+				error $1 cannot be imported from parameters
+				;;
+    esac
+    info 5 $1 parameters imported
+    shift
+done

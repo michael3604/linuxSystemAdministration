@@ -1,0 +1,17 @@
+#!/bin/bash
+source /scripts/lib/scriptbootstrapper.bsh "$@" --needs-sudo
+source /scripts/lib/parameters.bsh servers
+source /scripts/lib/call.bsh
+
+call /scripts/scripts-upgrader.bsh --release -V
+
+for server in ${other_servers[@]}; do
+	 if [[ $server == *"-lxc"* ]]; then
+		  info 4 Omitting $server
+		  continue
+	 fi
+	 source /scripts/lib/tarex.bsh user@"$server"
+	 info 3 "============" $server
+	 tarex "sudo /scripts/scripts-upgrader.bsh --restore && sudo /scripts/services-checker.bsh"
+done
+

@@ -1,0 +1,12 @@
+#/bin/bash
+
+echo Checking if zfs working correctly by testing tank/test/.zfs
+while ! sudo ls /tank/test/.zfs ; do
+  echo reloading zfs...
+  sudo modprobe zfs
+  sudo zpool import tank
+  sudo zfs load-key -a
+  sudo zfs mount -a
+  sleep 1  # optional: wait for a second before retrying
+done
+echo Done. zfs dataset tank/test seems to work correctly

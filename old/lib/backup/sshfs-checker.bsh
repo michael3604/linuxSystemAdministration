@@ -1,0 +1,24 @@
+#!/bin/bash
+#checks the sshfs mountpoints and remounts if necessary
+#ToDo:
+# turn into daemon?
+#fails:
+# [[ -r /status ]] returns positive for unmounted protected mountpoints
+# [[ -f /status/disks-iamalive ]] needs the main hosts name
+# mountpoint -q with double brackets acts wrong
+# not checking if it is not a mountpoint fails on unprotected mointpoints
+
+set -euxvo pipefail
+
+sshmps=(/status /var/logs.nmr) #sshfs mount points
+while :
+do
+ for i in "${sshmps[@]}"; do #for each sshfs mount point
+  if [[ ! $(ls "$i">/dev/null) ]] && ! mountpoint -q "$i"; then #if the mountpoint is in troube or is not a mointpoint
+   echo $i "is in trouble, remounting..."
+   sudo fusermount -uz "$i" || true  #unmount
+   sudo mount "$i" && echo "...remounted" #remount
+  fi
+ done
+ sleep 15
+done

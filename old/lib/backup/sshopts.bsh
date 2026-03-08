@@ -1,0 +1,55 @@
+#!/bin/bash
+# parameters for optional ssh
+
+### sets the following variables for either local, remote (ssh) or remote with jump command execution
+# ssh: prefix to call 
+# rsyncopts
+# remotehost
+# user
+
+[[ -n $1 ]] || error no parameter given
+
+# defaults: local
+ssh= #empty ssh parameter = local execution
+rsyncopts=/dev/null #rsyncoptions cannot be emtpy, as it would pass a '' to rsync later on, which in turn would be interpreted as the current directory. very bad hack.
+
+# parsing argument
+remotehost=$(echo $1 | cut -d':' -f1 | cut -d'@' -f2-)
+if [[ "$1" == *@* ]] ; then
+	 user=$(echo "$1" | cut -d'@' -f1)
+else
+	 if [[ -z $user ]]; then
+		  user=$(whoami)
+	 fi
+fi
+[[ -n "$remotehost" ]] || error remotehost cannot be empty
+[[ -n "$user" ]] || error user cannot be empty
+info 4 remote host:   "$remotehost"
+info 4 remote user:   "$user"
+
+# setting options
+if [[ ! "$remotehost" == bak00* ]] && [[ "$remotehost" == bak* ]]; then
+	 info 5 loading jump options
+	 source /scripts/lib/parameters.bsh sshtunnel "$1"
+	 remotehost="localhost"
+	 jumpopts=(-J $jumpuser@$intjumphost -p $intjumpport -o CheckHostIP=no) #options for the jumphost for ssh and rsync
+else
+	 info 5 no jump options loaded
+	 jumpopts=(-o CheckHostIP=no)
+fi
+
+ssh="ssh ""$user"@"$remotehost"" ""${jumpopts[@]}"" "
+if [[ -n "$jumpopts" ]]; then
+	 rsyncopts="-e ssh "$jumpopts""
+fi
+
+while : ; do
+	 if eval "$ssh" exit; then
+		  info 4 ssh connection established: $ssh
+		  break
+	 fi
+	 i=$((i+1))
+	 [[ $i -le 200 ]] || error ssh $ssh connection could not be established
+	 info 3 $ssh failed on attempt No. $i. retrying in 30 s...
+	 sleep 30
+done

@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Synchronizes Status with the Server
+# Michael
+
+# requires:
+# - passwordless ssh with the server (user sensitive).
+
+source /scripts/lib/scriptbootstrapper.bsh "$@"
+source /scripts/lib/parameters.bsh ssh
+
+if [[ $hostname == *test ]]; then
+	 waittime=2
+else
+	 waittime=10
+fi
+
+while : ; do
+    info 5 updating the server
+    if rsync --omit-dir-times --no-perms -tr --no-owner --delete --include="$(hostname)"* --exclude=* -e 'ssh -p '"$port"'' /status/ ssh-butler@$host:/status/ ; then
+	info 5 server updated.
+    else
+	info 4 an error has occured, continuing...
+    fi
+    sleep $waittime
+    info 5 updating the client
+    if rsync --omit-dir-times --no-perms -tr --no-owner --delete --exclude="$(hostname)*" -e 'ssh -p '"$port"'' ssh-butler@$host:/status/ /status/ ; then
+	info 5 client updated
+    else
+	info 4 an error has occured, continuing...
+    fi
+    sleep $waittime
+done

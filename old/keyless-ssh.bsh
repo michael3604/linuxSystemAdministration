@@ -1,0 +1,7 @@
+#!/bin/bash
+###ToDo: use scriptbootstrapper
+### e.g. $0 nmr.goip.de -p 48022
+
+[[ -f ~/.ssh/id_rsa.pub ]] || ssh-keygen -t rsa # do not overwrite if prompted
+ssh $@ mkdir -p .ssh
+cat ~/.ssh/id_rsa.pub | ssh $@ 'cat >> ~/.ssh/authorized_keys'

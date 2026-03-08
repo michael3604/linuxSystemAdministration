@@ -1,0 +1,11 @@
+#!/bin/bash
+title="starter for autossh reverse port forwarder"
+#defaults go here
+#defaults
+source /scripts/lib/scriptbootstrapper.bsh "$@" --needs-sudo
+source /scripts/lib/parameters.bsh sshtunnel "$hostname"
+
+#processing
+
+autossh -f -M 0 -N -T -p "$extjumpport" -o  "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -R "$intjumpport":localhost:22 "$jumpuser"@"$extjumphost" #ToDo: does not reliably restart. update status file from services-lxc through tunnel, restart when via crontab when too old.
+#autossh -M 0 -N -T -p 49022 -o  "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -R 21000:localhost:22 ssh-butler@nmr.goip.de

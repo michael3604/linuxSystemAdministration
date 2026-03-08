@@ -1,0 +1,254 @@
+#!/bin/bash
+arglongnames=( interval)
+argshortnames=(i)
+argtypes=(     FPRU) #types: FP=Free-parameter, P=Parameter, B=Boolean, R=Required, U=Uniqueifier, X=no log, V=minimum-verbosity)
+source /scripts/lib/scriptbootstrapper.bsh "$@" --needs-sudo  --lock
+source /scripts/lib/call.bsh
+
+case "$interval" in
+    boot)
+	info 4 creating upfile...
+	sudo touch /status/"$hostname".up
+	call /scripts/lockfile-cleaner.bsh
+	if [[ $hostname == disks* ]]; then
+	    info 4 loading zfs driver...
+	    modprobe zfs
+	    sudo zpool import tank || true
+	fi
+	if [[ $hostname == bak* ]]; then
+	    info 4 loadling btrfs driver...
+	    modprobe btrfs
+	fi
+#	if [[ $hostname == bak00 ]]; then
+#	    info 4 fixing iptables for wireguard...
+#	    iptables -t nat -A POSTROUTING -s 10.3.0.0/24 -o eth0 -j MASQUERADE
+#	fi
+#	if [[ $hostname == bak01 ]]; then
+#	    wg-quick up bak01
+#       fi
+	if [[ $hostname == disks ]]; then
+	    info 4 mount-binding directories...
+	    # butler
+	    mount --bind /temp                          /home/butler/data/temp
+	    mount --bind /status                        /home/butler/data/status
+	    # michael
+	    mount --bind /temp                          /home/michael/data/temp
+	    mount --bind /tank/michael                  /home/michael/data/michael
+	    mount --bind /tank/mark                     /home/michael/data/mark
+	    mount --bind /tank/lena                     /home/michael/data/lena
+	    mount --bind /tank/shared                   /home/michael/data/shared
+	    mount --bind /tank/backup/michael           /home/michael/data/backup-michael
+	    mount --bind /tank/backup/lena              /home/michael/data/backup-lena
+	    mount --bind /tank/image_database           /home/michael/data/image_database
+	    mount --bind /tank/systemdata               /home/michael/data/systemdata
+	    mount --bind /status                        /home/michael/data/status
+	    mount --bind /var/logs.nmr                  /home/michael/data/logs
+	    # lena
+	    mount --bind /temp                          /home/lena/data/temp
+	    mount --bind /tank/michael                  /home/lena/data/michael
+	    mount --bind /tank/mark                     /home/lena/data/mark
+	    mount --bind /tank/lena                     /home/lena/data/lena
+	    mount --bind /tank/shared                   /home/lena/data/shared
+	    mount --bind /tank/backup/lena              /home/lena/data/backup-lena
+	    mount --bind /tank/backup/lena/icloud/Photos /mnt/backup-lena-icloud/
+	    # mark
+	    mount --bind /tank/mark                     /home/mark/data/mark
+	    mount --bind /temp                          /home/mark/data/temp
+	    mount --bind /tank/shared                   /home/mark/data/shared
+	fi
+	sleep 30 # accessing dpkg or lxc in the first seconds causes errors
+	if [[ $hostname == disks ]]; then
+	    info 4 starting containers...
+	    sudo -u user76 lxc-unpriv-start -n services-lxc
+	    sudo -u user76 lxc-unpriv-start -n webserver-lxc
+	    ## sudo -u user76 lxc-unpriv-start -n icloudpd-lxc
+	fi
+	if [[ $hostname == disks-test ]]; then
+	    info 4 starting containers...
+	    sudo -u user76 lxc-unpriv-start -n services-lxc-test
+	    sudo -u user76 lxc-unpriv-start -n webserver-lxc-test
+	fi
+	call /scripts/clean-system-upgrade.bsh
+	;;
+    
+    15min)
+	if [[ $hostname == disks* ]]; then
+	    call /scripts/zfs-shadow-copy-snapshots.bsh
+	fi
+	call /scripts/services-checker.bsh
+	if [[ $hostname == services-lxc ]]; then
+	    call /scripts/alert-pushover.bsh
+	fi
+#	if [[ $hostname == bak00* ]]; then
+#	    if [[ $(find /status/$hostname.up -mmin +10) ]]; then # if the system hasn't just booted
+#		:
+#		###ToDo: check if services-lxc responds, email warning otherwise
+#		###ToDo: check if services-lxc has unresolved warnings or errors older than 1 h
+#	    fi
+#	fi
+	if [[ $hostname == rec* ]]; then
+	    i=0
+	    while : ; do
+		if [[ $(find /mnt/disks/butler/data/status/disks.up) ]]; then # if cifs mount doesn't work
+		    info 4 "cifs network drives seem available"
+		    break
+		fi
+		if [[ "$i" -lt 1 ]]; then
+		    warning "cifs is not available, retrying..."
+		else
+		    info 4 "looks like cifs is not mounted, retrying..."
+		fi
+		mount -a
+		sleep 30
+		i=$(("$i"+1))
+		if [[ "$i" -ge 10 ]]; then
+		    warning "cifs is not mounted. rebooting"
+		    sudo /scripts/reboot.py
+		fi
+	    done
+	fi
+
+	if [[ $hostname == webserver* ]]; then
+	    info 4 "running cronjobs for nextcloud"
+	    sudo -u www-data php -f /var/www/html/nextcloud/cron.php --define apc.enable_cli=1
+	fi
+	;;
+    
+    hourly)
+	if [[ $(find /status/$hostname.up -mmin +15) ]]; then # if the system hasn't just booted
+	    info 4 checking connection to main server...
+	    if [[ -z $(find /status/disks*.iamalive -mmin -15) ]] ; then
+		warning "$hostname could not find connection to host. rebooting..."
+		sudo /scripts/reboot.py
+	    fi
+	fi
+	if [[ $hostname == services-lxc* ]]; then
+	    source /scripts/lib/parameters.bsh servers
+	    info 4 checking connection to "${other_servers[@]}"
+	    for host in "${other_servers[@]}" ; do
+		if [[ -z $(find /status/$host.iamalive -mmin -60) ]]; then
+		    warning $hostname has not seen $host in a while...
+		fi
+	    done
+	    info 4 testing ssh-rev-tunnel to bak01
+	    if [[ ! $(ssh -p 21000 ssh-butler@localhost cat /etc/hostname) == bak01 ]] ; then ### ToDo: parametrize
+	       warning ssh rev tunnel failed. triggering reboot of services-lxc ... 
+	       /scripts/reboot.py
+	    fi
+
+	fi
+#	if [[ $hostname == bak01 ]]; then
+#	    info 4 checking wireguard connection
+#	    if [[ ! $(ping -c 5 disks) ]]; then
+#		warning wireguard connection broken. Restarting wireguard connection.
+#		wg-quick down bak01
+#		wg-quick up bak01
+#           fi
+#	fi
+	;;
+    daily)
+	#info deleting mail...
+	#sudo rm -f /var/mail/* #
+	if [[ ! $hostname == *-lxc* ]]; then
+	    info 4 checking hard-disks...
+	    call /scripts/free-space.bsh
+	    #call /scripts/ext4-checker.bsh ###ToDo: fix problems
+	    info 4 managing logs...
+	    if [[ $hostname == disks* ]]; then
+		logretention=7
+	    else
+		logretention=6
+	    fi
+	    find /var/logs.nmr/ -maxdepth 1 -mtime +$logretention -exec mv {} /var/logs.nmr/archive/ \; #archive old logs. retention on disks slightly longer than on clients to avoid copying logs that were just deleted on disks and not yet on the clients.
+	    find /var/logs.nmr/archive/ -not -name *.scrubbed -mtime +30 -exec rm {} \; #delete very old logs, except scrub notes
+	    find /var/logs.nmr/archive/ -mtime +400 -exec rm {} \; #delete ancient logs
+	    info 4 system backup goes here ###ToDo
+	fi
+	if [[ ! $hostname == *-lxc* ]] && [[ ! $hostname == *disks* ]]; then
+	    info 4 triggering a new log copy
+	    request $hostname sync-logs --nowait
+	fi
+	call /scripts/clean-system-upgrade.bsh #ToDo: for LXCs: call from host
+	###ToDo: scan for orphaned lock files: read pid from lockfile, look for process, compare name of process with name of lockfile
+
+	if [[ $hostname == webserver-lxc* ]]; then
+	    #sudo /scripts/cloud-mailer.bsh #ToDo: how to scan files outside of container...
+	    sudo -u www-data php /var/www/html/nextcloud/updater/updater.phar --no-interaction # updates the nextcloud (core)
+	    #sudo -u www-data php /var/www/html/nextcloud/occ upgrade #updates the nextcloud core (again)
+	    sudo -u www-data /var/www/html/nextcloud/occ -n app:update --all # updates the nextcloud apps
+	    sudo -u www-data /var/www/html/nextcloud/occ -n files:scan --unscanned --all
+	    #sudo -u www-data /var/www/html/nextcloud/occ preview:pre-generate
+	    sudo -u www-data /var/www/html/nextcloud/occ -n db:add-missing-indices
+	    sudo -u www-data /var/www/html/nextcloud/occ -n db:convert-filecache-bigint
+	fi
+	
+
+	if [[ $hostname == disks* ]]; then
+	    ###call --background /scripts/Win10Server-handler.bsh
+	    ###call --background /scripts/icloud.bsh
+
+	    ###ToDo: touch defined file on a zfs filesystem and have bak-hosts scan for this file
+#	    call /scripts/snapshots-for-backups.bsh
+#	    if [[ $hostname == disks ]]; then
+#		localbackup=bak00
+#		remotebackups=(bak01)
+#	    else
+#		localbackup=bak00-test
+#		remotebackups=(bak01-test)
+#	    fi
+#	    info 4 starting local backups
+#	    call /scripts/bak-data2remoteHDD.bsh /tank $localbackup ### ToDo: move to disks and run in foreground.
+	    ###XXX### for remotebackup in ${remotebackups[@]}; do
+		###XXX### info 4 starting remote backup to $remotebackup in the background as a separate script ###ToDo: move this info to the call script
+		###XXX### call --background /scripts/bak-data2remoteHDD.bsh /tank $remotebackup ###Disabled because Problems 2024-09-04
+	    ###XXX### done
+
+	    sudo mkdir -p /temp/recordings/$(date  --date=tomorrow '+%Y-%m-%d') # create date for recordings
+	    sudo chmod 777 /temp/recordings/$(date  --date=tomorrow '+%Y-%m-%d') # manage access
+	    call /scripts/recordings-cleaner.bsh -d 45
+
+	    info 4 "zfs-scrub check goes here, run sudo zpool status" ###ToDo
+	    zpool status -x ## zfs health check
+	    info 4 smart-health check goes here ###ToDo
+
+	    info 4 "backup verification goes here (after the zfs health check)" ###ToDo
+
+	    sudo -u michael wget -q https://calendar.google.com/calendar/ical/michaelneumeier84%40gmail.com/private-cf2445f57365ec0a217107fa8e24933d/basic.ics -O /tank/backup/michael/calendarBackup.ics || warning problem downloading michaels calendar
+	    sudo -u michael offlineimap -o
+
+	fi
+
+	if [[ $hostname == bak* ]]; then
+	    call /scripts/backup-HDD-health.bsh
+	fi
+
+	if [[ $hostname == services-lxc* ]]; then
+	    # watchdog for external HDDs goes here. scan /var/logs.nmr/scrubs/ ###ToDo
+	    # watchdog for successfile for critical scripts (cronjobs, backup, etc.) every server ###ToDo
+	    find /status/ -name "*lock" -mtime +7 -exec warning {} "runs for at least 7 days." \; #look for lockfiles older than 7 days, send warning
+	fi
+	;;
+    
+    weekly)
+	if [[ $hostname == bak* ]]; then
+	    call --background /scripts/backup-HDD-scrubber.bsh
+	fi
+	if [[ $hostname == services-lxc ]]; then
+	    /scripts/testalerts.bsh --log || true
+	fi
+	if [[ $hostname == webserver-lxc* ]]; then
+	    sudo certbot renew #renew SSL certificate
+	fi
+	;;
+    monthly)
+	:
+	;;
+    quarterly)
+	if [[ $hostname == disks* ]]; then
+	    sudo zpool scrub tank
+	fi
+	;;
+    *)
+	error unkown interval "$interval"
+	;;
+esac

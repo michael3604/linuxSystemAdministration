@@ -1,0 +1,46 @@
+#!/bin/bash
+
+set -euo pipefail
+source /scripts/lib/lock.lib.bsh
+lock
+
+needrestart --version > /dev/null || apt install -y needrestart
+
+containers=$(sudo -u user76 /snap/bin/lxc ls -cns | grep RUNNING | awk '{print $2}')
+for i in $containers; do 
+        echo "--- updating "$i" ---"
+        sudo -u user76 /snap/bin/lxc exec $i -- timeout 10m apt-get update
+done
+
+echo "--- main ---"
+timeout 5m apt-get update
+timeout 30m unattended-upgrades || true
+timeout 30m apt-get dist-upgrade -y
+timeout 30m apt-get autoremove -y
+
+for i in $containers; do 
+        echo "--- upgrading "$i" ---"
+        sudo -u user76 /snap/bin/lxc exec $i -- timeout 10m unattended-upgrades || true
+        sudo -u user76 /snap/bin/lxc exec $i -- timeout 15m apt-get dist-upgrade -y
+        sudo -u user76 /snap/bin/lxc exec $i -- timeout 10m apt-get upgrade -y
+	sudo -u user76 /snap/bin/lxc exec $i -- timeout 10m apt-get autoremove -y
+	sudo -u user76 /snap/bin/lxc exec $i -- reboot #quick reboot to ensure updates
+done
+
+# Restart affected services automatically
+needrestart -r a
+
+# Check if a reboot is required
+running=$(uname -r)
+latest=$(ls /boot/vmlinuz-* | sort -V | tail -n1 | xargs -n1 basename | sed 's/^vmlinuz-//')
+
+if [ "$running" != "$latest" ]; then
+    /scripts/pushover.bsh "New kernel $latest installed, running $running. Rebooting..."
+    systemctl reboot
+fi
+
+
+if [ -f /var/run/reboot-required ]; then
+   /scripts/pushover.bsh "rebooting after package upgrades"
+   systemctl reboot
+fi

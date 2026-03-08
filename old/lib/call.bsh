@@ -1,0 +1,37 @@
+#!/bin/bash
+
+#warning: callopts are used by tarex as well
+dryrunpossible=0 #resets dryrunpossible
+callopts=("--verbosity" $verbosity)
+if [[ $log -ge 1 ]]; then
+    callopts+=("--log")
+fi
+if [[ $debug -ge 1 ]]; then
+    callopts+=("--debug")
+fi
+if [[ $debug -ge 2 ]]; then
+    callopts+=("--debug")
+fi
+if [[ $nolockcheck -ge 1 ]]; then
+    callopts+=("--nolockcheck")
+fi
+calloptsback=("${callopts[@]}" --loglevel $loglevel)
+if [[ $loglevel -gt 2 ]]; then
+    callopts+=("--loglevel" 2)
+else
+    callopts+=("--loglevel" $loglevel)
+fi
+
+call () {
+    if [[ $1 == "--background" ]]; then
+	shift
+	info 4 calling "$@" "${calloptsback[@]}"" in the background. see separate logfile if available"
+	now
+	"$@" "${calloptsback[@]}" --loglevel $loglevel &>/dev/null &
+    else
+	info 4 calling "$@" "${callopts[@]}"
+	now
+	"$@" "${callopts[@]}"
+	info 5 "continuing with ""$scriptname"
+    fi
+}

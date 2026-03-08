@@ -1,0 +1,106 @@
+#!/bin/bash
+#defaults go here
+color="pale grey"
+helptext="basic example and template for scripts
+requires root privileges
+ sends spaceships from one planet to one or more celestial bodies.
+ usage: "$0" [options] [--type|-t] [spaceshiptype] start target[s]
+  e.g.: "$0" -t rocket earth moon mars
+        sends a rocket each from earth to moon and mars
+ Options:
+  -t --type  [type]  space ship type (required)
+     --color [color] space ship color, defaults to ""$color""
+  -r --return        sends the space craft on a return voyage.
+     --testuniqueflag
+     --testuniquparameter
+     --testerror
+     --testerror2
+     --testwarning
+     --testcall"
+
+#parametrization and variables
+arglongnames=( path zfs name)
+argshortnames=(---  z   n)
+argtypes=(     FPRU B   P)
+
+#load defaults
+source /scripts/lib/scriptbootstrapper.bsh "$@"
+source /scripts/lib/date-extractor.bsh
+
+#timeframes=( $((2*$day)) $((9*$day)) $((31*$day)) $((91*$day)) $((361*$day))  $((3*361*$day)) )
+#timedists=(   $((15*60)) $((60*60))      $day      $((7*$day)) $((31*$day))   $((91*$day)) )
+timeframes=( $(($day/4)) $((2*$day)) $((9*$day)) $((31*$day)) $((91*$day)) $((361*$day))  $((3*361*$day)) )
+timedists=(           1   $((15*60)) $((60*60))      $day      $((7*$day)) $((31*$day))   $((91*$day)) )
+#             every second for 6 hours
+#                         every 15 min for a 2 days
+#                                     every hour for a 1,5 weeks
+#                                                  every day for a 1 month
+#                                                              every week for a 1 quarter
+#                                                                           every month for 1 year
+#                                                                                           every quarter for 3 years
+
+#start values for loop
+i=0
+date_keeper=999999999999999999999999
+keeper=
+lastobject=
+keepers=0
+loosers=0
+remove () {
+	 info 5 deleting "$1"
+	 loosers=$((loosers+1))
+	 if [[ $zfs -ge 1 ]]; then
+		  local directory="$(dirname $(readlink -f "$1"))"
+		  local filesystem="${directory::-14}"
+		  local filesystem="${filesystem:1}"
+		  sudo zfs destroy "$filesystem"@"$(basename "$1")"
+	 else
+		  rm -Rf "$1"
+	 fi
+	 info 3 "$1" went quietly into that long night
+}
+
+info 5 "deleting progressively every directory."
+for object in $(find "$path" -mindepth 1 -maxdepth 1 -type d | sort | tac ); do  #tac sorts from newest to oldest, sed 1,10d removes the first 10 entries and thus keeps them in any case
+	 if [[ -n $name ]] && [[ ! $(basename "$object") == *"$name"* ]]; then
+		  info 5 "$object" does not contain "$name". Omitting
+		  continue
+	 fi
+	 info 5 processing "$object"
+	 date_object=$(date -d $(dateextractor "$object") +"%s" )
+	 if [[ $((starttime_unix-date_object)) -lt ${timeframes[-1]} ]]; then #if the date is not older than the longest timeframe
+		  # adjusting timedist
+		  while [[ $((starttime_unix-date_object)) -ge ${timeframes[i]} ]] ; do
+				i=$((i+1))
+				info 4 "---increasing step width to level" "$i" "("${timedists[i]} "s)"
+		  done
+		  # checking if files needs to be kept
+		  if [[ $((date_keeper - date_object)) -ge "${timedists[i]}" ]] ; then
+				info 5 "$object" "is at least the current time distance of" "${timedists[i]}" "s older."
+				if [[ -z $lastobject ]]; then
+					 info 5 no younger candidate found.
+					 info 4 "$object"" - keep"
+					 keeper=$object
+				else
+					 info 5 keeping next youngest candidate
+					 info 4 "$lastobject"" - keep"
+					 keeper=$lastobject
+				fi
+				date_keeper=$(date -d $(dateextractor "$keeper") +"%s" )
+		  else
+				info 5 "$object" "is less than the current distance of" "${timedists[i]}" "s older and is beeing kept in reserve."
+				if [[ "$lastobject" != "$keeper" ]]; then
+					 remove "$lastobject"
+				fi
+		  fi
+		  lastobject="$object"
+	 else
+		  info 5 "very old object found"
+		  remove "$object"
+	 fi
+done
+
+if [[ "$loosers" -ge  15 ]]; then
+	 warning "$loosers" objects have been deleted. This seems a bit high.
+	 exit
+fi

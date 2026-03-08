@@ -1,0 +1,61 @@
+#!/bin/bash
+set -euo pipefail
+
+CURRENT_CODENAME="bookworm"
+TARGET_CODENAME="trixie"
+REQUIRED_USER="user76"
+
+echo "=== LXD Debian upgrade: $CURRENT_CODENAME → $TARGET_CODENAME ==="
+echo
+
+
+# ---- User check ----
+if [[ "$(id -un)" != "$REQUIRED_USER" ]]; then
+    echo "ERROR: This script must be run as '$REQUIRED_USER'."
+    echo "Current user: $(id -un)"
+    exit 1
+fi
+
+# Get running containers only
+for c in $(lxc list --format csv -c n,s | awk -F, '$2=="RUNNING"{print $1}'); do
+    echo "-----"
+    echo "Container: $c"
+
+    CODENAME=$(lxc exec "$c" -- bash -c \
+        "grep VERSION_CODENAME /etc/os-release 2>/dev/null | cut -d= -f2 || true")
+
+    if [[ "$CODENAME" != "$CURRENT_CODENAME" ]]; then
+        echo "  -> Skipping (codename: ${CODENAME:-unknown})"
+        continue
+    fi
+
+    echo "  -> Upgrading..."
+
+    lxc exec "$c" -- bash -c "
+        set -e
+        export DEBIAN_FRONTEND=noninteractive
+
+        # Update sources
+        sed -i 's/$CURRENT_CODENAME/$TARGET_CODENAME/g' /etc/apt/sources.list
+        find /etc/apt/sources.list.d -type f -name '*.list' -exec \
+            sed -i 's/$CURRENT_CODENAME/$TARGET_CODENAME/g' {} + 2>/dev/null || true
+
+        apt update
+        apt -y upgrade --without-new-pkgs
+        apt -y full-upgrade
+        apt -y autoremove --purge
+        apt clean
+    "
+
+    echo "  -> Restarting..."
+    lxc restart "$c"
+
+    sleep 3
+
+    NEW_VERSION=$(lxc exec "$c" -- cat /etc/debian_version)
+    echo "  -> Now running Debian $NEW_VERSION"
+
+done
+
+echo
+echo "=== Upgrade process complete ==="

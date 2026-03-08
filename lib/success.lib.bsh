@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# success file handling library
+
+# Prevent double sourcing
+[[ -n "${__SUCCESS_LIB_LOADED:-}" ]] && return 0
+__SUCCESS_LIB_LOADED=1
+
+__SUCCESSFOLDER="/var/lib/nmrSuccess"
+
+# Ensure directory exists
+mkdir -p "$__SUCCESSFOLDER"
+
+success() {
+    local scriptname suffix file
+
+    scriptname="$(basename "$0")"
+
+    # Optional suffix
+    if [[ -n "${1:-}" ]]; then
+        suffix="$1"
+
+        # Allow only safe characters (adjust if needed)
+        if [[ ! "$suffix" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "Invalid success suffix: '$suffix'" >&2
+            return 1
+        fi
+
+        file="${__SUCCESSFOLDER}/${scriptname}.${suffix}.success"
+    else
+        file="${__SUCCESSFOLDER}/${scriptname}.success"
+    fi
+
+    touch "$file"
+}

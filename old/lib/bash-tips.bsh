@@ -1,0 +1,22 @@
+#!/bin/bash
+date -d 2021-01-28T03:00:00 +%s #returns 1611799200, Unix system time (epoch)
+date -d @1611799200 +%Y-%m-%dT%H:%M:%S-UTC #returns 2021-01-28T03:00:00-UTC, human readable date format
+tgt="${tgt%/}" # removes trailing slash
+
+rm -R ~/test/*; for i in {1..6000}; do mkdir -p ~/test/$(date -d $i" days ago" '+%Y-%m-%d')/testsubfolder; touch ~/test/$(date -d $i" days ago" '+%Y-%m-%d')/testfile; done #creates dummy folders for each date
+
+#check if file exists
+#@bak00-test,disks-test:mount-hdd
+#ls "$statusfolder"/@"$hostname"*":mount-hdd"
+# if ls "/status/@bak00-test"*":mount-hdd" &> /dev/null; then ### this one works
+statusfolder=/status
+hostname=bak00-test
+while : ; do
+if ls "$statusfolder"/@"$hostname"*":mount-hdd" &> /dev/null; then
+    echo "files do exist"
+else
+    echo "files do not exist"
+fi
+sleep 1
+done
+

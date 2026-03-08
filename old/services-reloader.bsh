@@ -1,0 +1,27 @@
+#!/bin/bash
+#reloads active services if service file is found in /scripts
+
+services=( $(ls /scripts/*service) ) #gets list of services
+
+for i in "${!services[@]}"; do
+	 #services[i]=$( echo "${services[i]}" | cut -f3- -d"/" ) #remove path
+	 services[i]=$( basename "${services[i]}" ) #remove path
+	 if ! systemctl status "${services[i]}" | grep "Loaded: loaded" ; then #remove service if it is not loaded
+		  unset 'services[i]'
+	 fi
+done
+
+if [[ -n "${services[@]}" ]]; then
+	 echo "active services on" $(hostname) ":" "${services[@]}"
+	 sudo systemctl daemon-reload
+else
+	 echo no custom services active on $(hostname)
+fi
+
+for service in "${services[@]}"; do
+	 if [[ $service != *ssh-rev-tunnel* ]]; then
+		  echo restarting "$service"
+		  sudo systemctl restart "$service"
+		  sudo systemctl status "$service"
+	 fi
+done

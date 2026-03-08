@@ -1,0 +1,34 @@
+#!/bin/bash
+set -euo pipefail
+
+# preparation
+#	mkdir -p /mnt/external-HDD
+#	chattr +i /mnt/external-HDD
+#	sudo apt install cryptsetup
+
+### unmount external-HDD to create a known state
+sudo umount /mnt/external-HDD 2>/dev/null || true
+sudo cryptsetup luksClose backup-data 2>/dev/null || true
+
+### mount external-HDD
+partitions=(    "0d118bd8-998b-443b-b9d7-255a679965ef" \
+		"e23fc0ef-6a31-4b0c-824c-7dac74a8764e" \
+		"e6d1195c-b029-40d9-824d-7fa0639840ef" \
+		"4ce2bb3f-bd46-41f9-b38b-73fe064a85db" \
+		"0b852cf8-f71b-457e-80ed-e700fce217a9" \
+		"3b6b85bd-d750-48dd-bfb5-ec03a5a3c7f1" \
+		"ba4cf585-3cf2-4b30-9f7d-5862bc17816e")
+
+for p in "${partitions[@]}"; do
+	if [ -e /dev/disk/by-uuid/"$p" ]; then
+		partition=/dev/disk/by-uuid/"$p"
+		break
+	fi
+done
+echo encrypted disk: "$partition"
+sudo cryptsetup luksOpen "$partition" backup-data --key-file /root/keyfiles/backupHDD/backup-HDD.key || true # open encrypted partition
+sudo mount /dev/mapper/backup-data /mnt/external-HDD || true # mount encrypted virtual file system
+if [[ ! -d /mnt/external-HDD/data ]] ; then
+	echo "error mounting external HDD"
+	exit 1
+fi

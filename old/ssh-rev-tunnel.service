@@ -1,0 +1,15 @@
+[Unit]
+Description=establish and mantain ssh tunnel to home server
+After=network-online.target
+
+[Service]
+Type=forking
+User=root
+ExecStart=/scripts/ssh-rev-tunnel.bsh
+Restart=always
+KillMode=process
+TimeoutSec=30
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

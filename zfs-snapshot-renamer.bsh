@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# List all ZFS snapshots ending with '-UTC'
+snapshots=$(zfs list -H -o name -t snapshot | grep -- '-UTC$')
+
+for snapshot in $snapshots; do
+    # Generate the new snapshot name
+    new_name=$(echo "$snapshot" | sed 's/-UTC$/UTC/')
+
+    # Rename the snapshot
+    echo "Renaming $snapshot to $new_name"
+    zfs rename "$snapshot" "$new_name"
+done
+
+echo "All snapshots renamed successfully."
+

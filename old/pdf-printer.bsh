@@ -1,0 +1,38 @@
+#!/bin/bash
+echo "pdf-printer has started and is look .pdf-files in the inbohe inbox folder"
+while : ; do
+    for i in /PDF/inbox/*/*.pdf ; do
+	if test -f  "$i"; then # if is a file
+	    echo "$i" found. processing...
+	    if lsof "$i" 2> /dev/null ; then #if file is still beeing written to, can be tested with exec {fd}>myfile and undone with exec {fd}>&-
+		echo "$i" is open by another process and ignored for now, as it is possibly still beeing written to.
+	    else #if file is not beeing written to
+		case $(dirname "$i") in # dirname determines print options
+		    *duplex-short)
+			echo printing "$i" as duplex-short...
+			lpr -o sides=two-sided-short-edge "$i"
+			;;
+		    *duplex)
+			echo printing "$i" as duplex...
+			lpr -o sides=two-sided-long-edge "$i"
+			;;
+		    *simplex)
+			echo printing "$i" as simplex...
+			lpr "$i"
+			;;
+		    *)
+			echo error
+			exit 1
+			;;
+		esac
+		echo "$i" printed.
+		#mv --backup=numbered "$i" /PDF #move file to archive, add ~[number]~ as suffix if required
+		filename=$(basename "$i")
+		newfilename="${filename%.pdf}"_"$(date -Iseconds)".pdf #interject date in filename
+		mv -- "$i" /PDF/archive/"$newfilename" #move file to archive and add printed date as uniquifier.
+		echo "$i" archived as "$newfilename" and removed from inbox.
+	    fi
+	fi
+    done
+    sleep 1
+done

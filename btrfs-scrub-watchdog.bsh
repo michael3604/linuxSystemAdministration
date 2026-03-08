@@ -1,0 +1,21 @@
+#!/bin/bash
+
+source /scripts/lib/lock.lib.bsh
+source /scripts/lib/messages.lib.bsh
+source /scripts/lib/success.lib.bsh
+
+inf "=== === checking btrfs scrub status of attached disks === ==="
+
+#btrfs (from local log files)
+for i in /var/lib/btrfs/scrub.status* ; do
+    if [[ $( sudo cat $i | grep 'errors:[1-9]') ]]; then
+	wrn $i "looks bad"
+        ###ToDo: age checker.
+        ###ToDo: checker for all disks (array?), not just the ones known by the system.
+    else
+        inf $i "scrub status is looking good"
+    fi
+done
+#zfs ###ToDo
+
+inf "=== === done === ==="

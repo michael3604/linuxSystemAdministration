@@ -1,0 +1,11 @@
+#!/bin/bash
+
+echo "checking most recent Emails for Lena..."
+find /tank/backup/google/lena/email    -mtime  -3 -type f -name *"mainGoogleBackup,U="* -quit || sudo /scripts/pushover.bsh "Lena has no current emails in the backup"
+#echo "checking backup check email for Lena..."
+#find /tank/backup/google/lena/email    -mtime -35 -type f -print0 | xargs -0 grep -l "BACKUP-CHECK-KNIGHT-VALIANT-BLUE-TURF" || sudo /scripts/pushover.bsh "Lena does not have the backup check email in her backup"
+echo "checking most recent Emails for Michael..."
+find /tank/backup/google/michael/email -mtime  -3 -type f -name *"mainGoogleBackup,U="* -quit || sudo /scripts/pushover.bsh "Michael has no current emails in the backup"
+#echo "checking backup check email for Michael..."
+#find /tank/backup/google/michael/email -mtime -35 -type f -print0 | xargs -0 grep -l "BACKUP-CHECK-KNIGHT-VALIANT-BLUE-TURF" || sudo /scripts/pushover.bsh "Michael does not have the backup check email in the backup"
+echo "...done"

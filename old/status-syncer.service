@@ -1,0 +1,15 @@
+[Unit]
+Description=waits for requests to read the backup disk and handles mounts and unmounts
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/scripts/status-syncer.bsh
+KillMode=process
+Restart=on-failure
+RestartSec=5s
+
+
+[Install]
+WantedBy=multi-user.target

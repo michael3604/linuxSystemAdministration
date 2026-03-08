@@ -1,0 +1,10 @@
+[Unit]
+Description=Update hd-idle config at boot
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/scripts/update-hd-idle.sh
+
+[Install]
+WantedBy=multi-user.target

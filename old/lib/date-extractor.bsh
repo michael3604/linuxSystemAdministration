@@ -1,0 +1,47 @@
+#!/bin/bash
+#defaults go here
+helptext="provides function to extract date from string.
+can handle dates with or without time (i.e. hours, etc.) in Windows-format and ISO 8601
+Returns ISO 8601 date in any case. Assumes timezone of local host for conversion.
+Throws error on failure
+Syntax in script:
+		 source "$0"
+		 dateextractor 2000-02-02
+		 bishop=\$\(dateextractor 2010-10-10T03:03:30\)"
+
+#load defaults
+source /scripts/lib/scriptbootstrapper.bsh "$@"
+
+dateextractor () {
+	 ###ToDo: parameter for UTC epoch
+	 [[ -n "$@" ]] || error "function dateextractor called without parameter"
+	 local string=$(basename "$@")
+	 local stringdate=
+	 for (( i=0; i<${#string}; i++ )); do
+		  if [[ "${string:$i:4}" =~ ^[0-9][0-9][0-9][0-9] ]] && [[ "${string:$((i+5)):2}" =~ ^[0-9][0-9] ]] && [[ "${string:$((i+8)):2}" =~ ^[0-9][0-9] ]]; then #date like structure has been detected
+				#iso 2021-03-15T10:57:47-UTC
+				#    12345678901234567890123
+				if stringdate=$(date -Is -u -d "${string:$i:23}" 2>/dev/null); then #iso with timezone
+					 break
+				elif stringdate=$(date -Is -u -d "${string:$i:19}" 2>/dev/null); then #iso without timezone
+					 break
+				elif stringdate=$(date -Is -u -d "${string:$i:10}" 2>/dev/null); then #iso without daytime (i.e. hours)
+					 break
+				elif stringdate=$(date -Is -u -d "${string:$i:4}"-"${string:$((i+5)):2}"-"${string:$((i+8)):2}"T"${string:$((i+11)):2}":"${string:$((i+14)):2}":"${string:$((i+17)):2}" 2>/dev/null) >/dev/null; then #windows shadow_copy-2021.03.03-17.45.01
+					 if [[ ! "${string:$((i+4)):1}" == "." ]] && [[ ! "${string:$((i+7)):1}" == "." ]] && [[ ! "${string:$((i+10)):1}" == "-" ]] && [[ ! "${string:$((i+13)):1}" == "." ]]  && [[ ! "${string:$((i+16)):1}" == "." ]]; then #check field separators, so a very long string of numbers is not interpreted as date.
+					 	  stringdate=
+					 else
+					 	  break	
+					 fi
+				fi
+				:
+		  fi
+	 done
+
+	 if [[ -n $stringdate ]]; then
+		  echo "$stringdate"
+	 else
+		  error "no valid date found in string" "$string"
+	 fi
+}
+

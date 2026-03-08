@@ -1,0 +1,9 @@
+#!/bin/bash
+#set -exvuo pipefail
+set scriptlevel
+if [[ ${#BASH_SOURCE[@]} == 1 ]]; then source /scripts/defaults.bsh ; fi #loads the default functions if script is main
+echo "Level": ${#BASH_SOURCE[@]}
+if [[ ${#BASH_SOURCE[@]} == 1 ]]; then echo "Top Level!" ; fi #loads the default functions if script is main
+now
+sleep 3
+source /scripts/test.bsh

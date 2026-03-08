@@ -1,0 +1,229 @@
+#!/usr/bin/env bash
+# ============================================================
+# argParser.lib.bsh
+# Reusable argument parser for operational bash scripts
+# ============================================================
+
+# Usage pattern in script:
+#
+#   source /scripts/lib/argParser.lib.bsh
+#
+#   arg_define_bool    "verbose"   "v"  "Enable verbose mode"
+#   arg_define_value   "repo"      "r"  "Borg repository path"   required
+#   arg_define_value   "retention" "t"  "Retention days"         default=7
+#
+#   arg_parse "$@"
+#
+#   echo "Repo: $ARG_repo"
+#   echo "Verbose: $ARG_verbose"
+#   echo "Retention: $ARG_retention"
+#
+
+# ============================================================
+# Internal storage
+# ============================================================
+
+declare -Ag __ARG_TYPE=()
+declare -Ag __ARG_SHORT=()
+declare -Ag __ARG_HELP=()
+declare -Ag __ARG_REQUIRED=()
+declare -Ag __ARG_DEFAULT=()
+
+declare -ag __ARG_POSITIONAL=()
+
+# ============================================================
+# Definition API
+# ============================================================
+
+arg_define_bool() {
+    local name="$1"
+    local short="$2"
+    local help="$3"
+
+    __ARG_TYPE["$name"]="bool"
+    __ARG_SHORT["$name"]="$short"
+    __ARG_HELP["$name"]="$help"
+    __ARG_REQUIRED["$name"]="false"
+    __ARG_DEFAULT["$name"]="false"
+
+    eval "ARG_${name}=false"
+}
+
+arg_define_value() {
+    local name="$1"
+    local short="$2"
+    local help="$3"
+    local modifier="$4"
+
+    __ARG_TYPE["$name"]="value"
+    __ARG_SHORT["$name"]="$short"
+    __ARG_HELP["$name"]="$help"
+
+    if [[ "$modifier" == "required" ]]; then
+        __ARG_REQUIRED["$name"]="true"
+        __ARG_DEFAULT["$name"]=""
+    elif [[ "$modifier" =~ ^default= ]]; then
+        __ARG_REQUIRED["$name"]="false"
+        __ARG_DEFAULT["$name"]="${modifier#default=}"
+    else
+        __ARG_REQUIRED["$name"]="false"
+        __ARG_DEFAULT["$name"]=""
+    fi
+
+    eval "ARG_${name}=\"${__ARG_DEFAULT[$name]}\""
+}
+
+# ============================================================
+# Help Generator
+# ============================================================
+
+arg_print_help() {
+    local script
+    script="$(basename "$0")"
+
+    echo "Usage: $script [options] [arguments]"
+    echo
+    echo "Options:"
+
+    for name in "${!__ARG_TYPE[@]}"; do
+        local short="${__ARG_SHORT[$name]}"
+        local help="${__ARG_HELP[$name]}"
+        local required="${__ARG_REQUIRED[$name]}"
+        local default="${__ARG_DEFAULT[$name]}"
+
+        local short_part=""
+        [[ -n "$short" ]] && short_part="-$short, "
+
+        local type="${__ARG_TYPE[$name]}"
+        local value_part=""
+        [[ "$type" == "value" ]] && value_part=" <value>"
+
+        printf "  %s--%s%s\n" "$short_part" "$name" "$value_part"
+        printf "      %s" "$help"
+
+        if [[ "$required" == "true" ]]; then
+            printf " (required)"
+        elif [[ -n "$default" ]]; then
+            printf " (default: %s)" "$default"
+        fi
+
+        echo
+        echo
+    done
+}
+
+# ============================================================
+# Parsing
+# ============================================================
+
+arg_parse() {
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+
+            --help|-h)
+                arg_print_help
+                exit 0
+                ;;
+
+            --*=*)
+                local opt="${1%%=*}"
+                local val="${1#*=}"
+                opt="${opt#--}"
+                __arg_set_long "$opt" "$val"
+                shift
+                ;;
+
+            --*)
+                local opt="${1#--}"
+                if [[ "${__ARG_TYPE[$opt]}" == "value" ]]; then
+                    shift
+                    [[ -z "$1" ]] && __arg_error "Option --$opt requires a value"
+                    __arg_set_long "$opt" "$1"
+                    shift
+                else
+                    __arg_set_long "$opt" "true"
+                    shift
+                fi
+                ;;
+
+            -?*)
+                local chars="${1#-}"
+                local i
+                for (( i=0; i<${#chars}; i++ )); do
+                    local c="${chars:$i:1}"
+                    __arg_set_short "$c"
+                done
+                shift
+                ;;
+
+            *)
+                __ARG_POSITIONAL+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    __arg_validate_required
+}
+
+# ============================================================
+# Internal Helpers
+# ============================================================
+
+__arg_set_long() {
+    local name="$1"
+    local value="$2"
+
+    [[ -z "${__ARG_TYPE[$name]}" ]] && __arg_error "Unknown option --$name"
+
+    if [[ "${__ARG_TYPE[$name]}" == "bool" ]]; then
+        eval "ARG_${name}=true"
+    else
+        eval "ARG_${name}=\"\$value\""
+    fi
+}
+
+__arg_set_short() {
+    local short="$1"
+    local name
+
+    for name in "${!__ARG_SHORT[@]}"; do
+        if [[ "${__ARG_SHORT[$name]}" == "$short" ]]; then
+            if [[ "${__ARG_TYPE[$name]}" == "bool" ]]; then
+                eval "ARG_${name}=true"
+                return
+            else
+                __arg_error "Short option -$short requires long form with value (--$name <value>)"
+            fi
+        fi
+    done
+
+    __arg_error "Unknown option -$short"
+}
+
+__arg_validate_required() {
+    local name
+    for name in "${!__ARG_REQUIRED[@]}"; do
+        if [[ "${__ARG_REQUIRED[$name]}" == "true" ]]; then
+            local val
+            eval "val=\"\$ARG_${name}\""
+            [[ -z "$val" ]] && __arg_error "Missing required option --$name"
+        fi
+    done
+}
+
+__arg_error() {
+    echo "Argument error: $1" >&2
+    echo >&2
+    arg_print_help >&2
+    exit 2
+}
+
+# ============================================================
+# Public accessor for positional args
+# ============================================================
+
+arg_positionals() {
+    printf "%s\n" "${__ARG_POSITIONAL[@]}"
+}

@@ -1,0 +1,58 @@
+#!/bin/bash
+source /scripts/lib/lock.lib.bsh
+source /scripts/lib/messages.lib.bsh
+
+inf "=== === checks on certain days if the external HDD is still mounted past a certain time === ==="
+
+lock
+
+# Config
+path="/mnt/external-HDD"
+time_hours=7
+time_days=(1 5)  # 1 = Monday, 5 = Friday
+delay=60
+warning_sent=0
+
+# Function to get the current ISO weekday number
+get_day_number() {
+    date +%u
+}
+
+# Function to get current hour in Berlin
+get_hour_berlin() {
+    TZ="Europe/Berlin" date +%H
+}
+
+# Infinite loop
+today=$(get_day_number)
+valid_day=0
+for day in "${time_days[@]}"; do
+    if [[ "$today" -eq "$day" ]]; then
+        valid_day=1
+        break
+    fi
+done
+
+if [[ $valid_day -eq 1 ]]; then
+   inf "correct day detected"
+    while : ; do
+        if ! mountpoint -q "$path"; then
+            inf "$path has been unmounted"
+            if [[ $warning_sent -eq 1 ]]; then
+                wrn "external HDD has been unmounted too late"
+            fi
+            exit 0
+        fi
+
+        current_hour=$(get_hour_berlin)
+        if [[ $current_hour -ge $time_hours ]] && [[ $warning_sent -eq 0 ]]; then
+            wrn  "$path"" is still mounted"
+            warning_sent=1
+        fi
+	sleep $delay
+    done
+else
+    inf "no detachment of HDD planned for today. exiting."
+fi
+
+inf "=== === done === ==="

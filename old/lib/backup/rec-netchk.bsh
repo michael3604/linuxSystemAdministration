@@ -1,0 +1,17 @@
+#!/bin/bash
+# if dataserver is available start main services
+# run once a minute via cron
+# ToDo: Think about protected mountpoints
+
+echo "Checking if disks is available"
+if [ -f /status/disks.iamalive ] ; then # checks for iamalive, not for folder of recordings (hdd access)
+ echo "disks is available, checking tvheadend and restarting it if need be."
+ # service tvheadend status || service tvheadend restart
+ service tvheadend status | grep "(running)" || service tvheadend restart
+ service tvheadend status | grep "(running)" && touch /status/$(hostname -s).tvheadend.iamalive
+else
+ echo "disks is not available, trying to establish samba connection"
+ service tvheadend stop
+ mount -a
+ # sleep 3
+fi

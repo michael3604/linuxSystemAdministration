@@ -1,0 +1,431 @@
+#!/bin/bash
+# default configurations
+# Todo:
+# - strict mode possible does not catch empty arrays?
+
+if [[ ${defaultsloaded:-0} -ge 1 ]]; then
+	 debug defaults already loaded
+else
+	 startvars=$(declare -p)
+	 starttime_unix=$(date +%s)
+	 date=$(date +%Y-%m-%dT%H:%M:%S-%Z) #setting starting date of script. colon is bad for windows filenames, but required to read date back from filenames. Samba handles compatibility
+	 day=$((24*60*60)) #day in seconds for further calculations. e.g. if [[ x -le $((91*day)) ]]
+	 IFS=$'\n\t' # set newline and tab as field separator, excluding <space>
+	 hostname=$(hostname -s)
+	 scriptname=$hostname.`basename "$0"` #get name of parent script
+	 statusfolder=/status
+
+	 debug () { #echos, but only if debug level is at least 1
+		  if [[ ${verbose:-0} -ge 1 ]]; then
+				echo -e "\e[32m" $@ "\e[39m"
+		  fi
+	 }
+
+	 now () { #defining funtion to print the current date
+		  debug "Time: "  $(date -Is -u)
+	 }
+
+	 # request function and await confirmation (*done file)
+	 # syntax: request <from whom> <what> eg. request bak03 mount-hdd
+	 request () {
+		  debug requesting "$1" to "$2"
+		  echo $$ > "$statusfolder"/"$scriptname"-"$date"@"$1":"$2" #creates e.g. /status/disks-offsitebackup-bak01-2021-02-21@bak01:mount-hdd
+		  if [[ ! "${3-}" == *no*wait ]]; then
+				local i=15
+				while : ; do
+					 if [[ $(ls "$statusfolder"/"$1"*@"$scriptname"-"$date":"$2".ok 2> /dev/null) ]]; then #waits for e.g. /status/bak01-hddmounter@disks-offsitebackup-bak01:mount-hdd.done
+						  debug "$1" seems to have done: "$2"
+						  now
+						  break
+					 fi
+					 echo waiting for "$1" to "$2" for another $i seconds...
+					 sleep $i
+					 i=$(($i+1)) #increment counter
+					 [[ $i -lt 300 ]] || error maximum number of retries reached. # 300 tries equals roughly 12 h
+				done
+		  fi
+	 }
+
+	 # error- and exit-functions
+	 # 1) set -eE makes the script exit with a returcode if any command fails
+	 # 2) trap 'stop $?' EXIT starts the stop-function with the returncode of the failed command
+	 # 3) the stop function processes the returncode and reacts to the error and/or cleans up the script
+	 set -euEo pipefail # set strict mode (default)
+	 stop() { #function to cleanup lockfiles and handle errors
+		  if [[ $1 -gt 0 ]]; then # if an error has happened
+				if [[ "${errormessage:-}" == "" ]]; then
+					 errormessage="unforeseen error."
+				fi
+				echo -e "\e[31m"==== error  ==== "$errormessage""\e[39m"" Errorcode: "${@:-}
+				debug "Scriptname: "$scriptname
+				if [[ ${log:-0} -ge 1 ]] || [[ ${failurelog:-0} -ge 1 ]] ; then
+					 debug writing errorfile "$errorfile"
+					 touch "$errorfile"
+					 echo "$errormessage" >> "$errorfile"
+					 now >> "$errorfile"
+				fi
+				if [[ ${verbose:-0} -ge 4 ]]; then
+					 debug variables without defaults: #defaults are set by the parent script, so before startvars are gathered at the start of this script
+					 declare -p | diff "$startvars" #print all variables minus the variables set at the start of the script (environment, etc.)
+				fi
+		  fi
+		  if [[ $(type -t cleanup) == function ]]; then #runs the cleanup function of the parent script (if available), BUT ONLY if lockfilecheck is passed (because this script needs to runs before the cleanup function in the parent script is defined)
+				debug cleanup started
+				cleanup
+				debug cleanup completed
+		  fi
+		  for i in $(find $statusfolder -name $scriptname"*"); do
+				if [[ $$ == $(cat "$i") ]]; then
+					 rm "$i"
+				fi
+		  done
+		  if [[ $1 -eq 0 ]] && [[ ${log:-0} -ge 1 ]] ; then # if no error has happened and a log is requested
+				touch "$successfile"
+		  fi
+		  if [[ ${log:-0} -ge 1 ]] || [[ ${failurelog:-0} -ge 1 ]]; then
+				if [[ ! $hostname == disks* ]] && [[ ! $hostname == *-lxc* ]]; then
+					 debug triggering log-syncer
+					 touch $hostname.sync-logs
+				fi
+		  fi
+		  now
+		  debug "$scriptname" done.
+	 }
+	 error() {
+		  errormessage="$@"
+		  exit 1
+	 }
+	 trap 'stop $?' EXIT #works together with set -e to find errors
+	 trap 'error === manual abort ===' INT #make strg+c trigger error
+	 warning () {
+		  echo -e "\e[35m"-- warning: ${@:-} "\e[39m"
+		  if [[ ${log:-0} -ge 1 ]] || [[ ${failurelog:-0} -ge 1 ]]; then
+				debug writing warningfile "$warningfile"
+				echo $@ >> "$warningfile"
+				now >> "$warningfile"
+				if [[ ! $hostname == disks* ]] && [[ ! $hostname == *-lxc* ]]; then
+					 debug triggering log-syncer
+					 touch $hostname.sync-logs
+				fi
+		  fi
+	 }
+
+	 arrindex () {
+		  # prints (returns) the index of a first matching value within an array or x if it is not found
+		  # syntax: <index>="$(arrindex "<search string>" "${<array>[@]}")"
+		  # e.g.:
+		  # testarray=("rook" "bishop" "white knight" "king")
+		  # index="$(arrindex "white knight" "${testarray[@]}")"
+		  # echo $index
+		  # prints:
+		  # 2
+		  local i=0
+		  local array=("$@")
+		  local array=("${array[@]:1}")
+		  local success=0
+		  local returnvalue=x
+		  for i in "${!array[@]}"; do
+				if [[ "${array[$i]}" == "$1" ]]; then
+					 returnvalue=$i
+ 					 break
+				fi
+		  done
+ 		  echo $returnvalue
+	 }
+
+	 helptext2=" Addionally, the following arguments are valid or may be called by the script itself
+     --dry-run       do not change any file
+  -h --help          print this help
+     --help2         print more help
+     --lock          allows only one instance of this script to run (remember uniquifiers)
+     --log           create a log file
+     --logfile       specifies the path of the logfile (required)
+     --needs-sudo    needs root priviledges
+     --no            negates the following parameter
+     --no-lock-check ignores (and overwrites) an existing lock file
+     --parent-can-dry-run 
+     --show-var      prints the variables created by the arguments
+  -v --verbose       increase verbosity level to show more and more information"
+
+	 # set variables if not already set by main script
+	 if [[ -z ${arglongnames:-x} ]]; then arglongnames=(); fi
+	 if [[ -z ${argshortnames:-x} ]]; then argshortnames=(); fi
+	 if [[ -z ${argtypes:-x} ]]; then argtypes=(); fi
+
+	 arglongnames=( ${arglongnames[@]}  help help2 verbose show-var parent-can-dry-run dry-run needs-sudo lock no-lock-check log failurelog logbasepath) #long names of arguments (mandatory for ALL arguments)
+	 argshortnames=(${argshortnames[@]} h    ---   v       ---      ---                ---     ---        ---  ---           --- ---        ---) #short names of arguments (use --- if not valid)
+	 argtypes=(${argtypes[@]}           B    B     B       B        B                  B       B          B    B             BV  B          PR) #Argtypes available: B=Boolean flag, F=Free parameter, P=Parameter, U=Uniquifier (alters the scriptname), R=required, L=List (only for free parameters), X=disables logging, V=enables verbosity of at least level 1
+
+	 #---todo: sanity checks
+	 # - duplicates in arglongnames and argshortnames for main and standard.lib.bsh (trick: add "no")
+	 # - argtype=*B* cannot have F,P, L or R in it
+	 # - argtype=*F* must have P in it
+	 # - argtype=*L* must have an F in it and can only occur once
+	 # - check if arrays for shortnames, longnames and types have the same number of elements
+
+	 #declare parameters
+	 for i in "${!argtypes[@]}"; do
+		  arglongnames[$i]=$(echo "${arglongnames[$i]}" | tr -d "-" ) # sed 's/-//') #removes the hyphons from arguments, because they are not allowed in variable names
+		  if [[ -n "${!arglongnames[$i]+x}" ]]; then #if the varialbe has already been set ... ( ${var+x} expands to nothing if varialbe is empty or unset and x if it is set. mind the + )
+				continue #...continue withe the next item in the list
+		  fi
+		  case "${argtypes[$i]}" in
+				*L*)
+					 declare -g -a "${arglongnames[$i]}"= #set string parameters to <null> and array								
+					 ;;
+				*B*)
+					 declare -g "${arglongnames[$i]}"=0 #set bolean parameters to 0								
+					 ;;
+				*P*)
+					 declare -g "${arglongnames[$i]}"= #set string parameters to <null>								
+					 ;;
+				*)
+					 error argument type of "${arglongnames[$i]}" is not valid: "${argtypes[$i]}"
+		  esac
+	 done
+	 declare -a -g nolist
+	 declare -a -g uniquelist
+
+	 #parse arguments
+	 until [[ -z ${1+x} ]]; do
+		  #echo $1
+		  case $1 in
+				"--no") #adds to no-list
+					 clean2=$(echo "$2" | tr -d "-") #create clean version of argument, i.e. without hyphen
+					 nolist=( "${nolist[@]}" "$clean2" )
+					 shift 2
+					 ;;
+				-[^-]?*)
+					 # looks for joined parameters (e.g. -abc) and expands them, but messes up the order (e.g. to -a -b -c)
+					 #  by looking for any parameter with more than 2 characters that doesn't start with --.
+					 # Only does one parameter at a time (e.g. first -ab -c, then -a -b -c).
+					 # caviats beware
+					 newparameter="${1: -1}" #new parameter is last character of joined parameter
+					 set -- "${@:1:$#}" "-$newparameter" "${@:$(expr $# + 1)}" #adds new parameter at the end, syntax explained just below
+					 #       L don't change the existing parameters (number one to end)
+					 #                   L add the parameter with the -...
+					 #                                    L ... behind the end (end+1)
+					 remjoined=${1:0:${#1}-1} #creates a new parameter without the one just added and ...
+					 set -- "${@:1:$#}" "$remjoined" "${@:$(expr $# + 1)}" #... adds it at the end (syntax similar to above)
+					 shift
+					 ;;
+				-*) # explicit parameters
+					 clean1=$(echo "$1" | tr -d "-") #create clean version of argument, i.e. without hyphen
+					 # expand parameter from short to long (i.e. v to verbose)
+					 index="$(arrindex "$clean1" "${argshortnames[@]}")"
+					 if [[ ! $index == x ]]; then
+						  clean1=${arglongnames[$index]}
+					 fi
+					 # get type of argument (i.e. parameter or boolean) and set value accordingly
+					 index="$(arrindex "$clean1" "${arglongnames[@]}")"
+					 [[ $index == "x" ]] && error "$1" is invalid parameter
+					 argtype=${argtypes[$index]}
+					 if [[ $argtype == *B* ]]; then
+						  declare -g "${arglongnames[$index]}"=$(("${arglongnames[$index]}"+1))
+						  shift
+					 fi
+					 if [[ $argtype == *P* ]]; then
+						  #[[ ! "$2" == -* ]] || error parameters cannot start with a hyphen. "$1" is set to "$2" #sshopts can start with hyphon.
+						  declare -g "${arglongnames[$index]}"="$2"
+						  shift 2
+					 fi
+					 ;;
+				*) #free parameter
+					 # 1) look for the first empty free parameter and set it.
+					 # 2) if that does not work: start from the last free parameter and
+					 #    a) make the value of the first free parameter found (the last one in the list) the current value processed ($1)
+					 #    b) shuffle all values one step forward until you find the list
+					 #    c) add the shuffled value to the list
+					 # 3) if all of the above failes: throw error, because to many free parameters where given
+					 while [[ true ]]; do
+						  # if there is an empty free parameter: fill it with value (1)
+						  for i in "${!argtypes[@]}"; do #loop argtypes
+								if [[ "${argtypes[$i]}" == *F* ]]; then #if argtype is free parameter
+									 if [[ -z "${!arglongnames[$i]}" ]]; then #if variable is empty
+										  if [[ "$(declare -p "${arglongnames[$i]}" )" =~ "declare -a" ]]; then #check if variable is an array and create accordingly
+												declare -g -a "${arglongnames[$i]}"="$1"
+										  else
+												declare -g "${arglongnames[$i]}"="$1"
+										  fi
+										  shift
+										  break 2
+									 fi
+								fi
+						  done
+						  # shuffle from last to first list (2)
+						  tmp="$1"
+						  while [[ $i -ge 0 ]]; do
+								if [[ "${argtypes[$i]}" == *F* ]]; then
+									 if [[ "${argtypes[$i]}" == *L* ]]; then
+										  j=0
+										  tmpname="${arglongnames[$i]}"[@] #prepare string for next step
+										  for k in "${!tmpname}"; do
+												j=$(($j+1))
+										  done
+										  j=$(($j+1))
+										  #eval "${arglongnames[$i]}"[$j]="$tmp"
+										  declare -g "${arglongnames[$i]}"[$j]="$tmp"
+										  shift
+										  break 2
+									 else #if it is a parameter: shuffle into tmp
+										  tmp2="${!arglongnames[$i]}"
+										  declare -g "${arglongnames[$i]}"="$tmp"
+										  tmp="$tmp2"
+									 fi
+								fi
+								i=$(($i-1))
+						  done
+						  error too many free arguments given #show error, if not avoided by success and break above
+					 done
+					 ;;
+		  esac
+	 done
+
+	 #help text
+	 if [[ $help -gt 0 ]] || [[ $help2 -gt 0 ]]; then
+		  if [[ $help -gt 0 ]]; then
+				echo -e "$title"
+				echo -e "$helptext"
+		  fi
+		  if [[ $help2 -gt 0 ]]; then
+				echo -e "$helptext2"
+		  else
+				echo " See also --help2 for further arguments"
+		  fi
+		  exit 0
+	 fi
+
+	 #carry over logging from grandparent script
+	 if [[ ! "$logbasepath" == x ]] && [[ $verbose -le 0 ]]; then
+		  verbose=1
+	 fi
+
+	 #get no log and verbosity from parameter
+	 for i in "${!argtypes[@]}"; do
+		  if [[ -z "${!arglongnames[$i]}" ]] || [[ "${!arglongnames[$i]}" == "0" ]] ; then
+				: # do nothing
+		  else
+				if [[ "${argtypes[$i]}" == *X* ]]; then
+					 nolist=("${nolist[@]}" log)
+					 debug log negated by parameter "${arglongnames[$i]}".
+				fi
+				if [[ "${argtypes[$i]}" == *V* ]] && [[ $verbose -lt 1 ]]; then
+					 verbose=1
+					 debug verbosity level increased by parameter "${arglongnames[$i]}".
+				fi
+		  fi
+	 done
+
+	 #nolist
+	 for i in "${nolist[@]}"; do
+		  j="$(arrindex "$i" "${arglongnames[@]}")"
+		  [[ $j == x ]] && error "$i" cannot be negated, as it is no valid parameter.
+		  if [[ ${argtypes[$j]} == *B* ]]; then
+				declare -g ${arglongnames[$j]}=0
+		  fi
+		  if [[ ${argtypes[$j]} == *P* ]]; then
+				declare -g ${arglongnames[$j]}=
+		  fi
+	 done
+
+	 #verbose mode
+	 if [[ "$verbose" -ge 1 ]]; then
+		  debug "verbosity mode has been set"
+		  if [[ "$verbose" -ge 2 ]]; then
+				set -v
+				debug "command expansion mode has been set"
+				if [[ "$verbose" -ge 3 ]]; then
+					 set -x
+					 debug "variable expansion has been set. Desparate times call for desparate measures."
+				fi
+		  fi
+	 fi
+	 shopt -u nullglob # disables nullglob (default), so e.g. "ls" works as expected. This can maybe not happen before the "exec > tee stuff" above
+
+	 #show-var
+	 if [[ $showvar -gt 0 ]]; then
+		  echo "The following paramters have been set so far:"
+		  for i in "${arglongnames[@]}"; do
+				declare -p $i
+		  done
+	 fi
+
+	 #create unique scriptname and check required parameters
+	 declare -a uniquelist
+	 for i in "${!argtypes[@]}"; do
+		  if [[ -z "${!arglongnames[$i]}" ]] && [[ "${argtypes[$i]}" == *R* ]]; then
+				error required parameter "${arglongnames[$i]}" is empty
+		  fi
+		  if [[ -n "${!arglongnames[$i]}" ]] && [[ "${argtypes[$i]}" == *U* ]]; then
+				if [[ "${argtypes[$i]}" == *P* ]]; then
+					 if [[ "${argtypes[$i]}" == *L* ]]; then
+						  tmp="${arglongnames[$i]}"[@] #prepare next step
+						  tmp="${!tmp}" #get values of parameter
+						  tmp=($(echo "${tmp[*]}" | tr " " "\n" | sort -n)) #sort alphabetically
+						  tmp2=$( IFS=$'_'; echo "${tmp[*]}" ) #turn array into string, joined by underscore
+						  uniquelist+="${arglongnames[$i]}"_"$tmp2"
+					 else
+						  uniquelist+=("${arglongnames[$i]}"_"${!arglongnames[$i]}")
+					 fi
+				fi
+				if [[ "${argtypes[$i]}" == *B* ]] && [[ "${!arglongnames[$i]}" -ge 1 ]]; then
+					 uniquelist+=("${arglongnames[$i]}")
+				fi
+		  fi
+	 done
+	 if [[ -n "${uniquelist[@]}" ]]; then
+		  for i in "${uniquelist[@]}"; do
+				scriptname="$scriptname"-"$i" # setting scriptname
+		  done
+	 fi
+	 scriptname=$(echo "$scriptname" | tr "?*\/:<>[]{}|&" _ ) #replace invalid characters in string with underscore
+
+	 #logging
+	 if [[ "$logbasepath" == x ]]; then # create logpath, if not done by the grandparent script
+		  logbasepath=/var/logs.nmr/"$scriptname"-"$date"
+	 fi
+	 logfile="$logbasepath".log.txt
+	 errorfile="$logbasepath".error
+	 warningfile="$logbasepath".warning
+	 successfile="$logbasepath".success
+	 if [[ $log -ge 1 ]]; then
+		  touch $logfile
+		  exec > >(tee -i $logfile) # write output to screen and logfile
+		  exec 2>&1 # write errormessages to same output
+		  now
+	 else
+		  debug "no log requested"
+	 fi
+	 debug "This script has the name: " $scriptname
+	 debug "executed as:" $(whoami)
+
+	 #check sudo
+	 if [[ $needssudo -gt 0 ]] && [[ ! $(whoami) == "root" ]]; then
+		  error sudo required!
+	 fi
+
+	 #lockfile check
+	 lockfile=$statusfolder/$scriptname.lock #lockfile is without date
+	 if [[ $nolockcheck -ge 1 ]]; then
+		  debug "Lock-file-check omitted as requested"
+	 else
+		  debug "performing lock-file-check"
+		  [[ ! -f "$lockfile" ]] || error lockfile found
+	 fi
+	 if [ $lock -gt 0 ]; then #create lockfile if requested
+		  debug "creating lockfile with PID" $$
+		  echo $$ >$lockfile 
+	 fi
+	 if [[ $dryrun -gt 0 ]]; then
+		  if [[ $parentcandryrun -ge 1 ]]; then
+				debug "parent can dry run, continuing..."
+		  else
+				debug "this dry run stops at the defaults script."
+				exit
+		  fi
+	 fi
+
+	 defaultsloaded=1
+	 debug "defaults are set up"
+	 now
+fi

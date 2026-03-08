@@ -1,0 +1,7 @@
+#!/bin/bash
+source /scripts/lib/scriptbootstrapper.bsh "$@" --needs-sudo
+# the following lines can be copy/pasted and directly executed on a new machine.
+src=scriptuser@services-lxc && \
+restorepoint=$(ssh "$src" ls scripts-backup | tail -1) && \
+sudo rsync -avz -e "ssh -o StrictHostKeyChecking=no" "$src":scripts-backup/"$restorepoint"/* /scripts --delete &&\
+sudo chown -R root:root /scripts

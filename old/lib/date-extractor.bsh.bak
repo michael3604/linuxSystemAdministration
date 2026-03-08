@@ -1,0 +1,56 @@
+#!/bin/bash
+#defaults go here
+helptext="provides function to extract date from string.
+can handle dates with or without time (i.e. hours, etc.) in Windows-format and ISO 8601
+Returns ISO 8601 date in any case. Assumes timezone of local host for conversion.
+Throws error on failure
+Syntax in script:
+		 source "$0"
+		 dateextractor 2000-02-02
+		 bishop=$(dateextractor 2010-10-10T03:03:30)
+		 echo $bishop"
+
+#load defaults
+source /scripts/lib/scriptbootstrapper.bsh "$@"
+
+dateextractor () {
+	 [[ -n "$@" ]] || error "function dateextractor called without parameter"
+	 info 5 extracting date from string "$@"
+	 string="$@"
+	 stringdate=
+	 for (( i=0; i<${#string}; i++ )); do
+		  if [[ "${string:$i:4}" =~ ^[0-9][0-9][0-9][0-9] ]]; then #year
+ 				if [[ "${string:$((i+4)):1}" == "." ]] || [[ "${string:$((i+4)):1}" == "-" ]] ; then #date separators
+					 if [[ "${string:$((i+5)):2}" =~ ^[0-9][0-9] ]]; then #month
+						  if [[ "${string:$((i+7)):1}" == "." ]] || [[ "${string:$((i+7)):1}" == "-" ]] ; then #date separators
+								if [[ "${string:$((i+8)):2}" =~ ^[0-9][0-9] ]]; then #day
+									 stringdate=$(date -Is -u -d "${string:$i:4}"-"${string:$((i+5)):2}"-"${string:$((i+8)):2}")
+									 #echo "${string:$((i+11)):2}":"${string:$((i+14)):2}":"${string:$((i+17)):2}"
+									 if [[ "${string:$((i+10)):1}" == "-" ]] || [[ "${string:$((i+10)):1}" == "T" ]] ; then #date-time separators
+										  if [[ "${string:$((i+11)):2}" =~ ^[0-9][0-9] ]]; then #hour
+												if [[ "${string:$((i+13)):1}" == "." ]] || [[ "${string:$((i+13)):1}" == ":" ]] ; then #time separators
+													 if [[ "${string:$((i+14)):2}" =~ ^[0-9][0-9] ]]; then #minute
+														  if [[ "${string:$((i+16)):1}" == "." ]] || [[ "${string:$((i+16)):1}" == ":" ]] ; then #time separators
+																if [[ "${string:$((i+17)):2}" =~ ^[0-9][0-9] ]]; then #second
+																	 stringdate=$(date -Is -u -d "${string:$i:4}"-"${string:$((i+5)):2}"-"${string:$((i+8)):2}"T"${string:$((i+11)):2}":"${string:$((i+14)):2}":"${string:$((i+17)):2}")
+																	 #caveat: ignores timezones for now
+																fi
+														  fi
+													 fi
+												fi
+										  fi
+									 fi
+									 break
+								fi
+						  fi
+					 fi
+				fi
+		  fi
+	 done
+
+	 if [[ -n $stringdate ]]; then
+		  echo $stringdate
+	 else
+		  error "no valid date found in string" "$string"
+	 fi
+}

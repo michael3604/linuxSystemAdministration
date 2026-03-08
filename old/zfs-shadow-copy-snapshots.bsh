@@ -1,0 +1,13 @@
+#!/bin/bash
+title="create and cleanup snapshots for windows shadow copy service"
+source /scripts/lib/scriptbootstrapper.bsh "$@" --needs-sudo
+source /scripts/lib/call.bsh
+
+for fs in $(ls /tank/* -d); do
+	 info 4 creating snapshot "${fs:1}"@shadow_copy-$(date +%Y.%m.%d-%H.%M.%S) 
+	 zfs snapshot "${fs:1}"@shadow_copy-$(date +%Y.%m.%d-%H.%M.%S) 
+	 call /scripts/progressive-deleter.bsh --zfs "$fs"/.zfs/snapshot --name "shadow_copy"
+	 ###ToDo: shadow copy only for folders exposed to windows clients
+	 ###ToDo: snapshots for user transparent nextcloud versioning
+done
+

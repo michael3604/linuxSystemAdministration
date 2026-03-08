@@ -1,0 +1,12 @@
+#!/bin/bash
+set -euo pipefail
+
+sudo umount /mnt/external-HDD || true
+sudo cryptsetup luksClose backup-data || true
+if ! mountpoint -q /mnt/external-HDD ; then
+    echo "Unmount successful."
+else
+    echo "-x-x-x-x- ERROR unmount unsuccessful !!! -x-x-x-x-x-"
+    /scripts/pushover.bsh "unmounting of external HDD unsuccessfull"
+    exit 1
+fi
