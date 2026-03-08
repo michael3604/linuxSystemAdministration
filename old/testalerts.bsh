@@ -1,9 +1,0 @@
-#!/bin/bash
-#defaults go here
-helptext="tests warning and error functions. use --log to create files"
-
-#load defaults
-source /scripts/lib/scriptbootstrapper.bsh "$@"
-
-warning testwarning
-error testerror

@@ -1,6 +1,0 @@
-#!/usr/bin/expect -f
-set timeout -1
-spawn icloudpd --directory /home/lena/data/backup-lena/icloud/Photos --username magdalena.neumeier@gmail.com --no-progress-bar --log-level error
-expect "Please enter password for encrypted keyring: "
-send -- "123\r"
-expect eof

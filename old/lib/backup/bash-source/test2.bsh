@@ -1,8 +1,0 @@
-#!/bin/bash
-if [[ ${#BASH_SOURCE[@]} == 1 ]]; then source /scripts/defaults.bsh ; fi #loads the default functions if script is main
-start "$@"
-now
-sleep 1
-echo "Hallo Welt"
-echo ${#BASH_SOURCE[@]}
-stop

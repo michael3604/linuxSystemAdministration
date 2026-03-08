@@ -1,5 +1,0 @@
-#!/bin/bash
-echo "syncs scripts from disks-test to disks"
-sudo rm /scripts/*"#"*
-sudo rm /scripts/*"~"*
-sudo rsync -avx --delete --exclude="__pycache__" --exclude=*"#"* --exclude=*"~"* user@disks-test:/scripts/ /scripts

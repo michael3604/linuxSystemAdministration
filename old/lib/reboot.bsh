@@ -1,3 +1,0 @@
-#!/bin/bash
-sudo /scripts/lxc-stopper.bsh
-sudo reboot

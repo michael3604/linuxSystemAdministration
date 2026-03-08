@@ -1,3 +1,0 @@
-#!/bin/bash
-find /var/logs.nmr/ -maxdepth 1 -type f -ctime +3 -exec mv {} /var/logs.nmr/archive \; #move every logfile older than 3 days to archive
-find /var/logs.nmr/archive/ -maxdepth 1 -type f -ctime +90 -exec rm {} \; #delete an archived logfile after 90 days

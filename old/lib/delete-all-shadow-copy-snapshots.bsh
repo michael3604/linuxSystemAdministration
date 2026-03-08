@@ -1,6 +1,0 @@
-#/bin/bash
-
-for i in $(sudo zfs list -H -o name -t snapshot | grep @shadow_copy | tac) ; do
- sudo echo "$i"
- sudo zfs destroy -vr "$i"
-done
