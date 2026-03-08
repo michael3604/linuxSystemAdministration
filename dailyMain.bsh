@@ -49,7 +49,7 @@ du -sm /var/log | awk '$1 < 500 {exit 0} {exit 1}' || wrn "log files are getting
 inf deleting old log files
 find /var/log/nmrCloud/ -type f -mtime +30 -delete
 inf backing up crontab
-cp /etc/crontab /scripts/
+cp /etc/crontab /scripts/crontabs/crontab.$(hostname)
 ### echo "upgrading nextcloud apps" && sudo -u user76 /snap/bin/lxc exec nextcloud-lxc -- sudo docker exec --user www-data nextcloud-aio-nextcloud php /var/www/html/occ app:update --all
 inf "validating photo downloads"
 [[ ! -z `sudo find "/tank/mediaPool/Phone Michael" -mtime -7` ]] || wrn "Michael has no recent media uploads"
