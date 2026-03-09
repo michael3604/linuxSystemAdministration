@@ -2,33 +2,18 @@
 set -euo pipefail
 
 title="Template Lorem Ipsum Salem"
-show_help() {
-echo "$title"
-cat << EOF
-Usage:
-  $0 [BASE_DIR] [DAYS] [--dry-run]
 
-Example:
-  $0 /temp/recordings 90
-  $0 /temp/recordings 35 --dry-run
-
-Options:
-  BASE_DIR   Path containing dated subfolders (default: /temp/recordings)
-  DAYS       Age threshold in days (default: 90)
-  --dry-run  Show what would be deleted without actually removing anything
-  --help     Show this help message
-EOF
-exit 0
-}
-
-###ToDo: add argparser to call help, do debug mode, etc.
-
-DEBUG_MODE=1
-
-source /scripts/lib/argParser.lib.bsh 
+source /scripts/lib/argParser.lib.bsh
 source /scripts/lib/lock.lib.bsh
 source /scripts/lib/messages.lib.bsh
 source /scripts/lib/success.lib.bsh
+
+arg_define_bool    "help"      "h"  "show help"
+arg_define_bool    "verbose"   "v"  "Enable verbose mode"
+#arg_define_value   "repo"      "r"  "Borg repository path"   required
+#arg_define_value   "retention" "t"  "Retention days"         default=7
+
+arg_parse "$@"
 
 lock
 inf info

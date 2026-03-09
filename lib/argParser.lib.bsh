@@ -80,7 +80,7 @@ arg_define_value() {
 arg_print_help() {
     local script
     script="$(basename "$0")"
-
+    echo "$title"
     echo "Usage: $script [options] [arguments]"
     echo
     echo "Options:"
