@@ -18,6 +18,7 @@ calcValidationHash() {
 
         # exclude the validation file by relative path
         #find . -type f ! -path $testpath -not -name "*.git*" -not -path "*.git*" -not -path "*backup*" -not -name "*.swp" -not -name "*.bak"
+        find . -type f -not -path "./$relValidation" -not -name "*.git*" -not -path "*.git*" -not -path "*backup*" -not -name "*.swp" -not -name "*.bak" -print0 | sort -z
         find . -type f -not -path "./$relValidation" -not -name "*.git*" -not -path "*.git*" -not -path "*backup*" -not -name "*.swp" -not -name "*.bak" -print0 \
             | sort -z \
             | xargs -0 sha256sum
