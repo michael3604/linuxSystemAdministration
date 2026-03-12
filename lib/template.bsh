@@ -1,27 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
+#set -x
 
-title="Template Lorem Ipsum Salem"
+title="Bash template file for sending probes around the solar system."
 
-source /scripts/lib/argParser.lib.bsh
-source /scripts/lib/lock.lib.bsh
-source /scripts/lib/messages.lib.bsh
-source /scripts/lib/success.lib.bsh
+source /scripts/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below)
+source /scripts/lib/lock.lib.bsh # for creating lock files
+source /scripts/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source /scripts/lib/success.lib.bsh #creates the success function for writing success files for monitoring
 
-arg_define_bool    "help"      "h"  "show help"
-arg_define_bool    "verbose"   "v"  "Enable verbose mode"
-#arg_define_value   "repo"      "r"  "Borg repository path"   required
-#arg_define_value   "retention" "t"  "Retention days"         default=7
+argDefineBool    "help"           "h" "show help"                     #creates optional argument help
+argDefineBool    "verbose"        "v" "Enable verbose mode"   #creates optional argument verbosity
+argDefineValue   "propellantType" "p" "propellant Type"       required  #creates required string argument
+argDefineValue   "stages"         "s" "Stages of the lauch vehicle" default=2 #creates value argument with default
+argDefineBool    "testAbort"      "e" "creates a test error"           #creates a test error
+argDefinePositional "bodyStart" "Start of the spacecraft"
+argDefinePositional "bodyStop"  "Target of the spacecraft"
 
-arg_parse "$@"
+argParse "$@" #parses the actual arguments according to the definitions above
 
-lock
-inf info
-vrb verbose message
-wrn warning
-err error
+lock #creates a lock file, accepts parameter for different locks, i.e. lock stage1, would only lock stage1
+inf preparing spacecraft... #creates an info message
+vrb last checks in progress... #creates a verbose info message
+wrn checks completed, launch imminent #create a warning message
+if [[ "$testAbort" -eq 1 ]] ; then
+  err "Launch Aborted!" #creates an error message and aborts the program
+fi
+inf "starting from $bodyStart powered by $propellantType the $stages Stages separate neatly"\
+    "and the spacecraft flies off to $bodyStop"
 
-vrb writing success file
-success
-success test
-ls -la  "$__SUCCESSFOLDER"
+success #writes the successfile
+success test #writes a sucessfile with the suffix test
+#ls -la  "$__SUCCESSFOLDER" #prints the successfolder (remove this for production scripts)

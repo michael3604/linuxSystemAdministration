@@ -31,17 +31,17 @@ timestamp() {
 }
 
 inf() {
-    echo -e "[ $(timestamp) ] ${C_INFO}INFO ${C_RESET} $*"
+    echo -e "[ $(timestamp) ] ${C_INFO}INFO${C_RESET} $*"
 }
 
 vrb() {
-    if [[ -n "${DEBUG_MODE:-}" ]]; then
-        echo -e "[ $(timestamp) ] ${C_DEBUG}DEBUG${C_RESET} $*"
+    if [[ "${verbose:0}" -eq 1 ]]; then
+        echo -e "[ $(timestamp) ] ${C_DEBUG}VRBS${C_RESET} $*"
     fi
 }
 
 wrn() {
-    echo -e "[ $(timestamp) ] ${C_WARN}WARN ${C_RESET} $*" >&2 #send message
+    echo -e "[ $(timestamp) ] ${C_WARN}WARN${C_RESET} $*" >&2 #send message
     local msg
     msg="$(hostname):$(basename -- "$0"):WARNG:$*"
 
@@ -57,7 +57,7 @@ wrn() {
 }
 
 err() {
-    echo -e "[ $(timestamp) ] ${C_ERROR}ERROR${C_RESET} $*" >&2
+    echo -e "[ $(timestamp) ] ${C_ERROR}ERRR${C_RESET} $*" >&2
 
     local msg
     msg="$(hostname):$(basename -- "$0"):ERROR:$*"

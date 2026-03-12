@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source /scripts/lib/argParser.lib.bsh
 source /scripts/lib/lock.lib.bsh
 source /scripts/lib/messages.lib.bsh
 source /scripts/lib/success.lib.bsh
