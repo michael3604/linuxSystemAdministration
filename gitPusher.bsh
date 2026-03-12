@@ -10,9 +10,13 @@ if [ $# -lt 1 ]; then
 fi
 
 COMMIT_MSG="$*"
-REPO_DIR="/scripts"
+REPO_DIR="/opt/linuxSystemAdministration/testing"
 
 cd "$REPO_DIR"
+
+echo creating hash file
+echo $(/scripts/lib/repoValidation.lib.bsh /opt/linuxSystemAdministration/testing/.validationHash /root/keyfiles/git/validationSecret.key /opt/linuxSystemAdministration/testing) > /opt/linuxSystemAdministration/testing/.validationHash
+echo "validation hash as read from file: "$(cat /opt/linuxSystemAdministration/testing/.validationHash)
 
 # Stage all changes (add new files, remove deleted files)
 git add -A
