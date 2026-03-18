@@ -144,6 +144,6 @@ if [[ $pull -eq 1 ]]; then
   mv "$dest".inwork "$dest" #atomic operation
   inf "repo downloaded to $dest"
 
-  # deploy
+  # deploy 
   ln -sfn "$dest" "/scripts"
 fi
