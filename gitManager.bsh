@@ -142,8 +142,9 @@ if [[ $pull -eq 1 ]]; then
   chmod -R a-w "$download" #additional protection for production scripts
   cp -a "$download"* "$dest".inwork
   mv "$dest".inwork "$dest" #atomic operation
-  inf "repo downloaded to $dest"
 
   # deploy
   ln -sfn "$dest" "/scripts"
+  inf "repo downloaded to $dest and deployed to /scripts"
+
 fi
