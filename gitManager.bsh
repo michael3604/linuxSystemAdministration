@@ -17,14 +17,12 @@ repo="https://github.com/michael3604/linuxSystemAdministration.git"
 
 source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
 source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
-source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
 source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
 
 argDefineValue   "push"           "s" "push to github. requires commit notes as parameters." optional
 #argDefineBool    "validate"       "a" "validates the scripts using the validation file"
 argDefineBool    "pull"           "g" "pulls scripts from git and deploys them"
 argDefineBool    "reset"          "r" "resets the download folder"
-
 
 argParse "$@" #parses the actual arguments according to the definitions above
 
@@ -42,11 +40,11 @@ calculate() {
     cd "$folder"
 
     # Prepare header for table
-printf "%-64s  %s\n" "HASH" "FILE" | tee "$outputFile"
+    printf "%-64s  %s\n" "HASH" "FILE" | tee "$outputFile"
 
-###ToDo: this should get simpler. maybe printf is not needed, but the regular output of openssl could be used?
-git ls-files --cached --others --exclude-standard -z \
-| while IFS= read -r -d '' file; do
+    ###ToDo: this should get simpler. maybe printf is not needed, but the regular output of openssl could be used?
+    git ls-files --cached --others --exclude-standard -z \
+    | while IFS= read -r -d '' file; do
     [[ -f "$file" && "$file" != "$relValidation" ]] || continue
 
     hash=$(sha256sum "$file" | awk '{print $1}')
@@ -56,14 +54,11 @@ git ls-files --cached --others --exclude-standard -z \
 done
 }
 
-
 [[ "$push" = "" && $(($pull +$reset)) = 0 ]] && err "at least one option must be used"
 
 ### ============================
 ### push local scripts to github
 ### ============================
-
-read -p "Press Enter to commit and push, or Ctrl+C to abort..." </dev/tty
 
 if ! [[ "$push" = "" ]]; then
 
@@ -89,7 +84,9 @@ if ! [[ "$push" = "" ]]; then
   inf "The following changes will be committed:"
   git status -s
   inf "Commit Notes: $push"
-  read -p "Press Enter to commit and push, or Ctrl+C to abort..." </dev/tty
+  (
+    read -p "Press Enter to commit and push, or Ctrl+C to abort..." #Needs to happen in a subshell because of the file descriptor issue within the lock function
+  )
   git commit -m "$push" #commit changes
   git push origin main --force #force push to remove remote files not present locally (think: rsync --delete)
   inf  "Local changes mirrored to GitHub successfully."
@@ -106,6 +103,7 @@ fi
 
 
 if [[ $pull -eq 1 ]]; then
+  vrb "pulling from github..."
   tmpVal=$(mktemp)
   if [[ ! -d "$download/.git" ]]; then
     mkdir -p "$download"
