@@ -2,6 +2,9 @@
 set -euo pipefail
 
 title="Pushes scripts from testing to git and/or pulls them from git to local production."
+
+### variables
+### ToDo: Cleanup and Renaming of variables
 scriptsBaseFolder="/opt/linuxSystemAdministration/testing/"
 download="/opt/linuxSystemAdministration/download/"
 base="/opt/linuxSystemAdministration/production"
@@ -13,7 +16,6 @@ secretFile="/root/keyfiles/git/validationSecret.key"
 secret="$(<"${secretFile}")"
 repo="https://github.com/michael3604/linuxSystemAdministration.git"
 
-
 source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
 source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
 source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
@@ -22,12 +24,14 @@ argDefineValue   "push"           "s" "push to github. requires commit notes as 
 #argDefineBool    "validate"       "a" "validates the scripts using the validation file"
 argDefineBool    "pull"           "g" "pulls scripts from git and deploys them"
 argDefineBool    "reset"          "r" "resets the download folder"
+argDefineBool    "prune"          "u" "prunes the production folder of old versions"
 
 argParse "$@" #parses the actual arguments according to the definitions above
 
-lock #creates a lock file, accepts parameter for different locks, i.e. lock stage1, would only lock stage1
+lock #creates a lock file
 
 calculate() {
+    # calculates the hashes of the secret and the individual files except the validation file and writes it to the validiation file
     local validationFile="$1"   # can be absolute or relative
     local folder=$(dirname "${validationFile=}")
     local outputFile="$2"
@@ -53,7 +57,7 @@ calculate() {
 done
 }
 
-[[ "$push" = "" && $(($pull +$reset)) = 0 ]] && err "at least one option must be used"
+[[ "$push" = "" && $(($pull + $reset + $prune)) = 0 ]] && err "at least one option must be used"
 
 ### ============================
 ### push local scripts to github
@@ -101,6 +105,10 @@ if [[ $reset -eq 1 ]]; then
 fi
 
 
+### ==============================
+### pull local scripts from github
+### ==============================
+
 if [[ $pull -eq 1 ]]; then
   vrb "pulling from github..."
   tmpVal=$(mktemp)
@@ -147,4 +155,19 @@ if [[ $pull -eq 1 ]]; then
   ln -sfn "$dest" "/scripts"
   inf "repo downloaded to $dest and deployed to /scripts"
 
+fi
+
+
+### =============================
+### prune local production folder
+### =============================
+
+if [[ $prune -eq 1 ]] ; then
+  ls -1dt "$base"/*/ | tail -n +6 | while read -r d; do
+    if [[ $(stat -c %Y "$d") -lt $(date -d '22 days ago' +%s) ]]; then
+      inf "Removing $d"
+      rm -rf -- "$d"
+    fi
+  done
+  inf "pruning completed"
 fi
