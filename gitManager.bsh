@@ -63,6 +63,8 @@ done
 ### push local scripts to github
 ### ============================
 
+read -p "Press Enter to commit and push, or Ctrl+C to abort..." </dev/tty
+
 if ! [[ "$push" = "" ]]; then
 
   vrb "push requested. push notes: $push"
@@ -86,10 +88,11 @@ if ! [[ "$push" = "" ]]; then
   git add -A #add validation file
   inf "The following changes will be committed:"
   git status -s
+  inf "Commit Notes: $push"
   read -p "Press Enter to commit and push, or Ctrl+C to abort..." </dev/tty
   git commit -m "$push" #commit changes
   git push origin main --force #force push to remove remote files not present locally (think: rsync --delete)
-  vrb  "Local changes mirrored to GitHub successfully."
+  inf  "Local changes mirrored to GitHub successfully."
   if [[ $pull -eq 0 ]]; then
     wrn "no get requested! Latest version has not been deployed locally."
   fi
