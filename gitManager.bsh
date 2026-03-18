@@ -122,7 +122,12 @@ if [[ $pull -eq 1 ]]; then
     git fetch --all
     git reset --hard origin/main
     if [[ "$oldHead" != $(git rev-parse HEAD) ]]; then
-      inf "Repo updated: $oldHead -> $(git rev-parse HEAD)"
+      # if called by the daily maintenance script, a warning is in order
+      if [[ "${BASH_SOURCE[0]}" != "daily"* ]] ; then
+        wrn "local repo updated: $oldHead -> $(git rev-parse HEAD)"
+      else
+        inf "local repo updated: $oldHead -> $(git rev-parse HEAD)"
+      fi
     else
       inf "Repo already up to date."
       exit 0

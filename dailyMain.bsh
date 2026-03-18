@@ -56,6 +56,7 @@ inf "validating photo downloads"
 [[ ! -z `sudo find "/tank/mediaPool/iCloud/" -mtime -7` ]] || wrn "Lena has no recent media uploads"
 [[ ! -z `sudo find "/tank/nextcloudData/maria/files/SofortUpload" -mtime -21` ]] || wrn "Maria has no recent media uploads"
 [[ ! -z `sudo find "/tank/nextcloudData/lois/files/SofortUpload" -mtime -21` ]] || wrn "Lois has no recent media uploads"
+/scripts/gitManager.bsh -gu #update and prune scripts
 
 #checking presence of young recordings (except on weekends)
 day=$(date +%u)
@@ -74,7 +75,7 @@ find "/tank/mediaPool/Lightroom/Lightroom Catalogue Backups/" -maxdepth 1 -name 
     inf removing "$dir"
     rm -rf "$dir"
 done
-#/scripts/systemBackupPruner.bsh ###ToDo: fix bugs
+/scripts/systemBackupPruner.bsh
 /scripts/recordings-cleaner.bsh
 inf "removing old system backups"
 find /tank/backup/system-backups/main -maxdepth 1 -mindepth 1 -mtime +90 -exec rm -r {} \;

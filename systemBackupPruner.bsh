@@ -71,7 +71,7 @@ for d in $(ls -1d 20* | sort -r); do
     else
         inf "DELETE $d"
         # comment the following 2 lines for a test run
-        mv "$d" "$d".deleteMe #mark to protect against partial deletes
+        mv "$d" "$d".deleteMe #mark to protect against partial deletes, e.g. when script crashes during deleting of folder
         rm -rf -- "$d".deleteMe
     fi
 done
