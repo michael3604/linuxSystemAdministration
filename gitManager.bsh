@@ -152,7 +152,7 @@ if [[ $pull -eq 1 ]]; then
   mv "$dest".inwork "$dest" #atomic operation
 
   # deploy
-  ln -sfn "$dest" "/scripts"
+  ln -sfn "$dest" "/scripts" #atomic operation, should keep currently running scripts in old folder undisturbed
   inf "repo downloaded to $dest and deployed to /scripts"
 
 fi
