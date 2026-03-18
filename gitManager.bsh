@@ -4,12 +4,15 @@ set -euo pipefail
 
 title="Pushes scripts from testing to git and/or pulls them from git to local production."
 scriptsBaseFolder="/opt/linuxSystemAdministration/testing/"
+base="/opt/linuxSystemAdministration/production"
 validationFilePushPath="$scriptsBaseFolder"".validation"
 validationFilePushTemp="$(mktemp)"
 validationFileGetPath="/scripts/.validation"
 validationFileGetTemp="$(mktemp)"
 secretFile="/root/keyfiles/git/validationSecret.key"
 secret="$(<"${secretFile}")"
+repo="https://github.com/michael3604/linuxSystemAdministration.git"
+
 
 source /scripts/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below)
 source /scripts/lib/lock.lib.bsh # for creating lock files
@@ -19,8 +22,8 @@ source /scripts/lib/success.lib.bsh #creates the success function for writing su
 argDefineBool    "help"           "h" "show help"                     #creates optional argument help
 argDefineBool    "verbose"        "v" "Enable verbose mode"   #creates optional argument verbosity
 argDefineValue   "push"           "p" "push comments. also triggers push" optional
-argDefineBool    "validate"       "a" "pushes scripts from testing to github"
-argDefineBool    "get"            "g" "pulls scripts from git and deploys them"
+argDefineBool    "validate"       "a" "validates the scripts using the validation file"
+argDefineBool    "pull"           "g" "pulls scripts from git and deploys them"
 
 
 argParse "$@" #parses the actual arguments according to the definitions above
@@ -33,6 +36,7 @@ lock #creates a lock file, accepts parameter for different locks, i.e. lock stag
 calculate() {
     local validationFile="$1"   # can be absolute or relative
     local folder=$(dirname "${validationFile=}")
+    local outputFile="$2"
 
     # convert validationFile to relative path from folder
     local relValidation
@@ -41,26 +45,25 @@ calculate() {
     cd "$folder"
 
     # Prepare header for table
-    printf "%-64s  %-50s  %-20s  %10s\n" "HASH" "FILE" "MOD_DATE" "SIZE" | tee "$relValidation"
+printf "%-64s  %s\n" "HASH" "FILE" | tee "$outputFile"
 
-    git ls-files --cached --others --exclude-standard -z \
-        | while IFS= read -r -d '' f; do
-            [[ -f "$f" && "$f" != "$relValidation" ]] && printf '%s\0' "$f"
-          done \
-        | xargs -0 stat --printf='%n\0%s\0%Y\0' \
-        | while IFS= read -r -d '' file && IFS= read -r -d '' size && IFS= read -r -d '' mtime; do
-            local hash
-            hash="$(sha256sum "$file" | awk '{print $1}')"
-            local final_hash
-            final_hash="$(printf '%s%s' "$hash" "$file" | openssl dgst -sha256 -hmac "$secret" | awk '{print $2}')"
-            local mod_date
-            mod_date="$(date -d "@$mtime" '+%Y-%m-%d %H:%M:%S')"
-            printf "%-64s  %-50s  %-20s  %10s\n" "$final_hash" "$file" "$mod_date" "$size" | tee -a "$relValidation"
-          done
+git ls-files --cached --others --exclude-standard -z \
+| while IFS= read -r -d '' file; do
+    [[ -f "$file" && "$file" != "$relValidation" ]] || continue
+
+    hash=$(sha256sum "$file" | awk '{print $1}')
+    final_hash=$(printf '%s%s' "$hash" "$file" | openssl dgst -sha256 -hmac "$secret" | awk '{print $2}')
+
+    printf "%-64s  %s\n" "$final_hash" "$file" | tee -a "$outputFile"
+done
 }
 
 
-[[ "$push" = "" && $(($validate + $get)) = 0 ]] && err "at least one option must be used"
+[[ "$push" = "" && $(($validate + $pull)) = 0 ]] && err "at least one option must be used"
+
+### ============================
+### push local scripts to github
+### ============================
 
 if ! [[ "$push" = "" ]]; then
 
@@ -90,6 +93,40 @@ if ! [[ "$push" = "" ]]; then
   git push origin main --force #force push to remove remote files not present locally (like rsync --delete)
   vrb  "Local changes mirrored to GitHub successfully."
 
+fi
+
+if [[ $pull -eq 1 ]]; then
+  tmp=$(mktemp -d)
+  tmpVal=$(mktemp)
+
+  # get latest commit hash from remote
+  commit=$(git ls-remote "$repo" refs/heads/main | cut -f1)
+
+  # fetch only that commit
+  git init "$tmp/repo"
+  cd "$tmp/repo"
+  git remote add origin "$repo"
+  git fetch --depth 1 origin "$commit"
+  git checkout FETCH_HEAD
+  #validate download
+  calculate "$tmp/repo/.validation" "$tmpVal"
+  vrb "diffing..."
+  set -x
+  cat "$tmpVal"
+  cat "$tmp/repo/.validation" 
+  diff "$tmpVal" "$tmp/repo/.validation" || err "Validation failed! Check hashes in validation file!"
+  inf "validation complete"
+  exit 1
+  # extract commit date
+  commit_date=$(git show -s --format=%cI HEAD)
+
+  dest="$base/$commit_date"
+
+  mkdir -p "$dest".inwork #suffix helps detecting partial downloads, etc.
+  cp -a . "$dest".inwork
+  mv "$dest".inwork "$dest" #atomic operation
+
+  inf "repo downloaded to $dest"
 fi
 
 

@@ -1,34 +1,34 @@
-HASH                                                              FILE                                                MOD_DATE                    SIZE
-a2203d37aaef381923f635656d80838bcb3d309b84aa2fadbca315f0b6020d01  .gitignore                                          2026-03-13 10:01:00          122
-22acf109d7fa678ad2d5a731ab7284e9b138aad98b6922ba15f766af0164e33e  LICENSE                                             2026-03-08 06:33:30         1068
-d41aeaf3ffbe8aa2bdc49cfecd82b9ba04a59a10eaf72911b71f3796dd2fb57f  backup-borg.bsh                                     2026-03-11 11:47:00         8351
-495bd29c0445093fbdc83a873b344009802c3f596df885e8fb5c19ad9fc2f82f  backup-root-main.bsh                                2026-02-26 09:50:50         1714
-a1799c49565ffbb4d47356447134e3ac6cf8efb4ebd6d4ac7a02aa9bf24b1dd3  backup-simple.bsh                                   2026-03-01 16:41:41         5618
-0f310907a1ce782134e94a8327ff54c1cfbd50c9f96e755f8a28ef2013a1ba14  btrfs-scrub-watchdog.bsh                            2026-02-26 13:12:50          565
-6b735fc61cabb74f10752d9f8747a4427f2eb9a401a95252e458637f2aa7cc84  btrfs-snapshot-manager.py                           2026-01-15 21:09:12         6794
-f4dd65fc70d5b0a66faa33ade6ad5295b7e654035841703c8d8fd4a5f1996c57  crontabs/crontab.main                               2026-03-12 01:22:58         1360
-3ad795514153889ac88815a470c8187d1febfbb4e572cf3742c064a7bcf28499  dailyMain.bsh                                       2026-03-15 12:31:28         4942
-55329be8a468350459a266635c6b1941858802067bf68d41c481efbe736a204d  external-HDD-mount-checker.bsh                      2026-02-26 13:57:50         1298
-0872da3b67ba44b043e7e2b336cf954624d641850d4783346a23cff8ab79219f  external-HDD-mounter.bsh                            2026-01-15 10:38:11         1115
-606bf9d5d393e8eaa3e7095e3d9714000f0f249bf347077efc8be7da4ea43260  external-HDD-unmounter.bsh                          2026-01-03 19:00:50          342
-f1823015842883a12cfc2e1ee1b3e2b9b5c14ed71670aad5b9eb1b3675104db9  freeSpace.bsh                                       2026-02-25 22:44:09         1795
-1343bbcb55c61a0b3c1391ff1e4f4482b23a16bdb2c6843cfb78cbaa3f563e9e  gitManager.bsh                                      2026-03-18 12:32:31         4170
-5805b95307519312ec71965e761a44a3340049686cdab9838eaedbefe42a5231  googleEmailBackupValidator.bsh                      2026-02-08 19:18:53          992
-132b484387d1a54670c4b6a0c84a4aa1920238a9c6ae08b0fb87884e314ffc86  iCloudPDResetter.bsh                                2026-01-29 06:26:59          184
-d07e61d3fc63490dcacd21a74903abfee8bb6e99691e9562bc1cde4376ef92c9  lib/argParser.lib.bsh                               2026-03-18 11:21:21         8110
-5d7c4acf5bf7c66269e1fcd76577e34ac0a6fee6511395bf591429fab8b6cd57  lib/lock.lib.bsh                                    2026-02-24 14:12:45         3620
-c7d9d18e8323a55431b07491beaabf3e8ddd31bf1372828cc55db8b8d4f276b3  lib/messages.lib.bsh                                2026-03-12 15:34:50         2039
-780810ee236f3435e654f52839de8dc9f13bc9d8269f28cb08d4d2a8a2716dfb  lib/success.lib.bsh                                 2026-02-26 07:42:14          762
-8cba85fe448bb5386ed16732f5b08ab0039a3be3682c3d6d67e94a55d53a53f6  lib/template.bsh                                    2026-03-12 15:28:40         1928
-d1df896598eb8b2f92208bc83b58f44cc42032dc74509801436e94c8988499ee  lxc-exec.bsh                                        2026-02-19 10:37:01          318
-7f2653fff6008dc02a9c36d155d7203d15ef634ed14a51d13c7a1f20364de4a7  lxcMajorUpgrader.bsh                                2026-02-11 22:43:32         1546
-a52fd7ea2e7e51c1cec8645e9172b6c474af8850033bbf78c6504c38c4900671  os-upgrader.bsh                                     2026-02-25 23:16:03         1479
-02641695034e67ea7e3937d870f605a446484c68809132e93e4bcebf9c8dcb5b  pushover.bsh                                        2026-02-25 23:53:45          490
-c44fb62c82c09ce3f6d0ec82bf2475ac682e3e898fd6e21fae01dfd420e58bee  recordings-cleaner.bsh                              2026-03-09 17:38:32         1813
-0788b019eafa5bd4fb890830792573e663065034e968ea9c421b38321ab62311  scrubber.bsh                                        2026-01-03 19:00:50           38
-a9c5438d969784e433266955515005bbd6ef687919987100d6422ddf73808adc  systemBackupPruner.bsh                              2026-03-15 22:15:05         2614
-109d30f1bb94f3e339d9428357f4c672f21624d5e163c52b46dd5006509971b4  update-hd-idle.service                              2026-01-03 19:00:50          170
-c26ceeb03a63fff0f0428bf4e598a41470d16b7cf155761d34cdc3f48d432047  update-hd-idle.sh                                   2026-01-03 19:00:50         1350
-db81e08b011b54e5ef893ddb651fa030753c675f50fe2f204537454a65e1ad2b  zfs-mounter.bsh                                     2026-01-03 19:00:50          345
-a2ace1565742ee7dd21fe6876ca836882db399fc5c4658c4f7ab0213b94271e8  zfs-snapshot-manager.py                             2026-01-03 19:00:50         7047
-cc93c628e1d8bdc424dddc03c672ab7bf335ad95422dd81ead0e4325e682ab02  zfs-snapshot-renamer.bsh                            2026-01-03 19:00:50          402
+HASH                                                              FILE
+a2203d37aaef381923f635656d80838bcb3d309b84aa2fadbca315f0b6020d01  .gitignore
+22acf109d7fa678ad2d5a731ab7284e9b138aad98b6922ba15f766af0164e33e  LICENSE
+d41aeaf3ffbe8aa2bdc49cfecd82b9ba04a59a10eaf72911b71f3796dd2fb57f  backup-borg.bsh
+495bd29c0445093fbdc83a873b344009802c3f596df885e8fb5c19ad9fc2f82f  backup-root-main.bsh
+a1799c49565ffbb4d47356447134e3ac6cf8efb4ebd6d4ac7a02aa9bf24b1dd3  backup-simple.bsh
+0f310907a1ce782134e94a8327ff54c1cfbd50c9f96e755f8a28ef2013a1ba14  btrfs-scrub-watchdog.bsh
+6b735fc61cabb74f10752d9f8747a4427f2eb9a401a95252e458637f2aa7cc84  btrfs-snapshot-manager.py
+f4dd65fc70d5b0a66faa33ade6ad5295b7e654035841703c8d8fd4a5f1996c57  crontabs/crontab.main
+3ad795514153889ac88815a470c8187d1febfbb4e572cf3742c064a7bcf28499  dailyMain.bsh
+55329be8a468350459a266635c6b1941858802067bf68d41c481efbe736a204d  external-HDD-mount-checker.bsh
+0872da3b67ba44b043e7e2b336cf954624d641850d4783346a23cff8ab79219f  external-HDD-mounter.bsh
+606bf9d5d393e8eaa3e7095e3d9714000f0f249bf347077efc8be7da4ea43260  external-HDD-unmounter.bsh
+f1823015842883a12cfc2e1ee1b3e2b9b5c14ed71670aad5b9eb1b3675104db9  freeSpace.bsh
+cb1992dbc4084c143ae49cd698565d27532d953f85056166655f54a2c2bdc93d  gitManager.bsh
+5805b95307519312ec71965e761a44a3340049686cdab9838eaedbefe42a5231  googleEmailBackupValidator.bsh
+132b484387d1a54670c4b6a0c84a4aa1920238a9c6ae08b0fb87884e314ffc86  iCloudPDResetter.bsh
+d07e61d3fc63490dcacd21a74903abfee8bb6e99691e9562bc1cde4376ef92c9  lib/argParser.lib.bsh
+5d7c4acf5bf7c66269e1fcd76577e34ac0a6fee6511395bf591429fab8b6cd57  lib/lock.lib.bsh
+c7d9d18e8323a55431b07491beaabf3e8ddd31bf1372828cc55db8b8d4f276b3  lib/messages.lib.bsh
+780810ee236f3435e654f52839de8dc9f13bc9d8269f28cb08d4d2a8a2716dfb  lib/success.lib.bsh
+8cba85fe448bb5386ed16732f5b08ab0039a3be3682c3d6d67e94a55d53a53f6  lib/template.bsh
+d1df896598eb8b2f92208bc83b58f44cc42032dc74509801436e94c8988499ee  lxc-exec.bsh
+7f2653fff6008dc02a9c36d155d7203d15ef634ed14a51d13c7a1f20364de4a7  lxcMajorUpgrader.bsh
+a52fd7ea2e7e51c1cec8645e9172b6c474af8850033bbf78c6504c38c4900671  os-upgrader.bsh
+02641695034e67ea7e3937d870f605a446484c68809132e93e4bcebf9c8dcb5b  pushover.bsh
+c44fb62c82c09ce3f6d0ec82bf2475ac682e3e898fd6e21fae01dfd420e58bee  recordings-cleaner.bsh
+0788b019eafa5bd4fb890830792573e663065034e968ea9c421b38321ab62311  scrubber.bsh
+a9c5438d969784e433266955515005bbd6ef687919987100d6422ddf73808adc  systemBackupPruner.bsh
+109d30f1bb94f3e339d9428357f4c672f21624d5e163c52b46dd5006509971b4  update-hd-idle.service
+c26ceeb03a63fff0f0428bf4e598a41470d16b7cf155761d34cdc3f48d432047  update-hd-idle.sh
+db81e08b011b54e5ef893ddb651fa030753c675f50fe2f204537454a65e1ad2b  zfs-mounter.bsh
+a2ace1565742ee7dd21fe6876ca836882db399fc5c4658c4f7ab0213b94271e8  zfs-snapshot-manager.py
+cc93c628e1d8bdc424dddc03c672ab7bf335ad95422dd81ead0e4325e682ab02  zfs-snapshot-renamer.bsh
