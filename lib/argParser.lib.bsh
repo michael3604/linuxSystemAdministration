@@ -47,6 +47,7 @@ argDefineBool() {
     __ARG_DEFAULT["$name"]="0"
 
     eval "$name=0"
+    vrb "$name has been set"
 }
 
 argDefineValue() {
@@ -81,6 +82,7 @@ argDefineValue() {
     fi
 
     eval "$name=\"${__ARG_DEFAULT[$name]}\""
+    vrb "$name has been set to \"${__ARG_DEFAULT[$name]}\""
 }
 
 # declare positional parameter
@@ -364,3 +366,7 @@ __arg_error() {
 
     exit 2
 }
+
+
+argDefineBool    "help"           "h" "show help"
+argDefineBool    "verbose"        "v" "Enable verbose mode"

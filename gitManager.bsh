@@ -15,25 +15,20 @@ secret="$(<"${secretFile}")"
 repo="https://github.com/michael3604/linuxSystemAdministration.git"
 
 
-source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below)
 source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
 source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
 source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
 
-argDefineBool    "help"           "h" "show help"
-argDefineBool    "verbose"        "v" "Enable verbose mode"
-argDefineValue   "send"           "s" "push to github. requires commit notes as parameters." optional
+argDefineValue   "push"           "s" "push to github. requires commit notes as parameters." optional
 #argDefineBool    "validate"       "a" "validates the scripts using the validation file"
-argDefineBool    "push"           "p" "pulls scripts from git and deploys them"
+argDefineBool    "pull"           "g" "pulls scripts from git and deploys them"
 argDefineBool    "reset"          "r" "resets the download folder"
 
 
 argParse "$@" #parses the actual arguments according to the definitions above
 
 lock #creates a lock file, accepts parameter for different locks, i.e. lock stage1, would only lock stage1
-#inf preparing spacecraft... #creates an info message
-#vrb last checks in progress... #creates a verbose info message
-#wrn checks completed, launch imminent #create a warning message
 
 calculate() {
     local validationFile="$1"   # can be absolute or relative
@@ -62,7 +57,7 @@ done
 }
 
 
-[[ "$push" = "" && $(($validate + $pull +$reset)) = 0 ]] && err "at least one option must be used"
+[[ "$push" = "" && $(($pull +$reset)) = 0 ]] && err "at least one option must be used"
 
 ### ============================
 ### push local scripts to github
@@ -91,9 +86,9 @@ if ! [[ "$push" = "" ]]; then
   git add -A #add validation file
   inf "The following changes will be committed:"
   git status -s
-  read -p "Press Enter to commit and push, or Ctrl+C to abort..."
+  read -p "Press Enter to commit and push, or Ctrl+C to abort..." </dev/tty
   git commit -m "$push" #commit changes
-  git push origin main --force #force push to remove remote files not present locally (like rsync --delete)
+  git push origin main --force #force push to remove remote files not present locally (think: rsync --delete)
   vrb  "Local changes mirrored to GitHub successfully."
   if [[ $pull -eq 0 ]]; then
     wrn "no get requested! Latest version has not been deployed locally."
@@ -101,12 +96,14 @@ if ! [[ "$push" = "" ]]; then
 
 fi
 
+if [[ $reset -eq 1 ]]; then
+  wrn "removing download folder"
+  rm -rf "download"
+fi
+
+
 if [[ $pull -eq 1 ]]; then
   tmpVal=$(mktemp)
-  if [[ $reset -eq 1 ]]; then
-    wrn "removing download folder"
-    rm -rf "download"
-  fi
   if [[ ! -d "$download/.git" ]]; then
     mkdir -p "$download"
     wrn "creating initial clone of repo"
@@ -120,7 +117,7 @@ if [[ $pull -eq 1 ]]; then
       inf "Repo updated: $oldHead -> $(git rev-parse HEAD)"
     else
       inf "Repo already up to date."
-      temp exit 0
+      exit 0
     fi
   fi
 
@@ -150,9 +147,3 @@ if [[ $pull -eq 1 ]]; then
   # deploy
   ln -sfn "$dest" "/scripts"
 fi
-
-
-
-#success #writes the successfile
-#success test #writes a sucessfile with the suffix test
-#ls -la  "$__SUCCESSFOLDER" #prints the successfolder (remove this for production scripts)

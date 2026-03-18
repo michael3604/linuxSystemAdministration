@@ -35,7 +35,7 @@ inf() {
 }
 
 vrb() {
-    if [[ "${verbose:0}" -eq 1 ]]; then
+    if [[ "${verbose:=0}" -eq 1 ]]; then
         echo -e "[ $(timestamp) ] ${C_DEBUG}VRBS${C_RESET} $*"
     fi
 }
