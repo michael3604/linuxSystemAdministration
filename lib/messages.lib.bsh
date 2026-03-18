@@ -72,3 +72,10 @@ err() {
     fi
     exit 1
 }
+
+#displaying title when called by another script for improved log readabilty
+if [[ $SHLVL -ge 3 ]] ; then
+  inf "=== === === $title === === ==="
+else
+  vrb "=== === === $title === === ==="
+fi

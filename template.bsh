@@ -10,8 +10,6 @@ source $(dirname "$0")/lib/success.lib.bsh #creates the success function for wri
 source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
 
 
-argDefineBool    "help"           "h" "show help"                     #creates optional argument help
-argDefineBool    "verbose"        "v" "Enable verbose mode"   #creates optional argument verbosity
 argDefineValue   "propellantType" "p" "propellant Type"       required  #creates required string argument
 argDefineValue   "stages"         "s" "Stages of the lauch vehicle" default=2 #creates value argument with default
 argDefineBool    "testAbort"      "e" "creates a test error"           #creates a test error
