@@ -3,6 +3,7 @@
 source /scripts/lib/lock.lib.bsh
 source /scripts/lib/messages.lib.bsh
 source /scripts/lib/success.lib.bsh
+set +e #continue even after errors
 
 lock
 
@@ -53,9 +54,16 @@ cp /etc/crontab /scripts/crontabs/crontab.$(hostname)
 inf "validating photo downloads"
 [[ ! -z `sudo find "/tank/mediaPool/Phone Michael" -mtime -7` ]] || wrn "Michael has no recent media uploads"
 [[ ! -z `sudo find "/tank/mediaPool/iCloud/" -mtime -7` ]] || wrn "Lena has no recent media uploads"
-[[ ! -z `find /tank/nextcloudData/maria/files/SofortUpload -mtime -21` ]] || wrn "Maria has no recent media uploads"
-[[ ! -z `find /tank/nextcloudData/lois/files/SofortUpload -mtime -21` ]] || wrn "Lois has no recent media uploads"
-[[ ! find /temp/recordings -type f -mtime -3 -print -quit | grep -q . ]] || wrn "no young recordings found!" ###ToDo: check directly during GZSZ with tighter timeframe
+[[ ! -z `sudo find "/tank/nextcloudData/maria/files/SofortUpload" -mtime -21` ]] || wrn "Maria has no recent media uploads"
+[[ ! -z `sudo find "/tank/nextcloudData/lois/files/SofortUpload" -mtime -21` ]] || wrn "Lois has no recent media uploads"
+
+#checking presence of young recordings (except on weekends)
+day=$(date +%u)
+if [[ "$day" -ne 7 && "$day" -ne 1 ]]; then #if not monday or sunday
+    inf "checking existence of young recordings"
+    [[ ! -z `find /temp/recordings -type f -mtime -1 ` ]] || wrn "no young recordings found!"
+fi
+
 inf "removing old backups of scripts made by editors"
 find /scripts -maxdepth 1 -mindepth 1 -name "*~*" -type f -mtime +3 -exec rm {} \;
 find /scripts -maxdepth 1 -mindepth 1 -name "*#*" -type f -mtime +3 -exec rm {} \;
@@ -66,7 +74,7 @@ find "/tank/mediaPool/Lightroom/Lightroom Catalogue Backups/" -maxdepth 1 -name 
     inf removing "$dir"
     rm -rf "$dir"
 done
-/scripts/systemBackupPruner.bsh
+#/scripts/systemBackupPruner.bsh ###ToDo: fix bugs
 /scripts/recordings-cleaner.bsh
 inf "removing old system backups"
 find /tank/backup/system-backups/main -maxdepth 1 -mindepth 1 -mtime +90 -exec rm -r {} \;
@@ -83,7 +91,7 @@ inf "backing up main root"
 /scripts/backup-root-main.bsh
 /scripts/os-upgrader.bsh
 ###ToDo: start ext HDD scrubber here but in the background, and not on mondays or fridays
-sleep 12h #uncomment this line to delay the off-site-backup if required.
+#sleep 12h #uncomment this line to delay the off-site-backup if required.
 /scripts/backup-borg.bsh backup
 /scripts/backup-borg.bsh prune
 ### postprocessing

@@ -51,7 +51,9 @@ argDefineValue() {
     local name="$1"
     local short="$2"
     local help="$3"
-    local modifier="$4"
+    #local modifier="$4"
+    local modifier="${$4:-0}"
+
 
     __ARG_TYPE["$name"]="value"
     __ARG_SHORT["$name"]="$short"

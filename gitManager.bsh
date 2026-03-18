@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#set -x
+
+title="Pushes scripts from testing to git and/or pulls them from git to local production."
+scriptsBaseFolder="/opt/linuxSystemAdministration/testing/"
+validationFilePushPath="$scriptsBaseFolder"".validation"
+validationFilePushTemp="$(mktemp)"
+validationFileGetPath="/scripts/.validation"
+validationFileGetTemp="$(mktemp)"
+secretFile="/root/keyfiles/git/validationSecret.key"
+secret="$(<"${secretFile}")"
+
+source /scripts/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below)
+source /scripts/lib/lock.lib.bsh # for creating lock files
+source /scripts/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source /scripts/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+
+argDefineBool    "help"           "h" "show help"                     #creates optional argument help
+argDefineBool    "verbose"        "v" "Enable verbose mode"   #creates optional argument verbosity
+argDefineValue   "push"           "p" "push comments. also triggers push" optional
+argDefineBool    "validate"       "a" "pushes scripts from testing to github"
+argDefineBool    "get"            "g" "pulls scripts from git and deploys them"
+
+
+argParse "$@" #parses the actual arguments according to the definitions above
+
+lock #creates a lock file, accepts parameter for different locks, i.e. lock stage1, would only lock stage1
+#inf preparing spacecraft... #creates an info message
+#vrb last checks in progress... #creates a verbose info message
+#wrn checks completed, launch imminent #create a warning message
+
+calculate() {
+    local validationFile="$1"   # can be absolute or relative
+    local folder=$(dirname "${validationFile=}")
+
+    # convert validationFile to relative path from folder
+    local relValidation
+    relValidation="$(realpath --relative-to="$folder" "$validationFile")"
+
+    cd "$folder"
+
+    # Prepare header for table
+    printf "%-64s  %-50s  %-20s  %10s\n" "HASH" "FILE" "MOD_DATE" "SIZE" | tee "$relValidation"
+
+    git ls-files --cached --others --exclude-standard -z \
+        | while IFS= read -r -d '' f; do
+            [[ -f "$f" && "$f" != "$relValidation" ]] && printf '%s\0' "$f"
+          done \
+        | xargs -0 stat --printf='%n\0%s\0%Y\0' \
+        | while IFS= read -r -d '' file && IFS= read -r -d '' size && IFS= read -r -d '' mtime; do
+            local hash
+            hash="$(sha256sum "$file" | awk '{print $1}')"
+            local final_hash
+            final_hash="$(printf '%s%s' "$hash" "$file" | openssl dgst -sha256 -hmac "$secret" | awk '{print $2}')"
+            local mod_date
+            mod_date="$(date -d "@$mtime" '+%Y-%m-%d %H:%M:%S')"
+            printf "%-64s  %-50s  %-20s  %10s\n" "$final_hash" "$file" "$mod_date" "$size" | tee -a "$relValidation"
+          done
+}
+
+
+[[ "$push" = "" && $(($validate + $get)) = 0 ]] && err "at least one option must be used"
+
+if ! [[ "$push" = "" ]]; then
+
+  vrb "push requested. push notes: $push"
+
+  vrb "diffing local and remote repo"
+
+  cd "$scriptsBaseFolder"
+  git add -A #add new and changed files to tracker
+  git rm --cached $(git ls-files -i -c --exclude-standard) 2>/dev/null || true ## add .gitignore rules to tracking list (in case gitignore changed)
+
+  # Check if there are any changes
+  if git diff-index --quiet HEAD --; then
+    echo "No changes to commit."
+    exit 0
+  fi
+
+  vrb "updating validation file $validationFilePushPath"
+  calculate "$validationFilePushPath" "$validationFilePushPath" #update the validation file
+
+  vrb adding validation file to repo
+  git add -A #add validation file
+  inf "The following changes will be committed:"
+  git status -s
+  read -p "Press Enter to commit and push, or Ctrl+C to abort..."
+  git commit -m "$push" #commit changes
+  git push origin main --force #force push to remove remote files not present locally (like rsync --delete)
+  vrb  "Local changes mirrored to GitHub successfully."
+
+fi
+
+
+
+#success #writes the successfile
+#success test #writes a sucessfile with the suffix test
+#ls -la  "$__SUCCESSFOLDER" #prints the successfolder (remove this for production scripts)

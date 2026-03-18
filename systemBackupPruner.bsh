@@ -1,162 +1,80 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
+#set -x
 
-source /scripts/lib/lock.lib.bsh
-source /scripts/lib/messages.lib.bsh
-source /scripts/lib/success.lib.bsh
+title="Prune system backups"
 
-lock
+#source /scripts/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below)
+source /scripts/lib/lock.lib.bsh # for creating lock files
+source /scripts/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging>
+source /scripts/lib/success.lib.bsh #creates the success function for writing success files for monitoring
 
-BACKUP_ROOT="/tank/backup/system-backups/main"
-SNAPSHOT_ROOT="/mnt/root-snapshots"
+#argDefineBool    "help"           "h" "show help"                     #creates optional argument help
+#argDefineBool    "verbose"        "v" "Enable verbose mode"   #creates optional argument verbosity
+#argDefineValue   "propellantType" "p" "propellant Type"       required  #creates required string argument
+#argDefineValue   "stages"         "s" "Stages of the lauch vehicle" default=2 #creates value argument with default
+#argDefineBool    "testAbort"      "e" "creates a test error"           #creates a test error
+#argDefinePositional "bodyStart" "Start of the spacecraft"
+#argDefinePositional "bodyStop"  "Target of the spacecraft"
 
-inf "=== === Pruning System Backups === ==="
+#argParse "$@" #parses the actual arguments according to the definitions above
 
-###############################################################################
-# Safety-checked mark-for-deletion
-###############################################################################
-mark_delete() {
-    local dir
-    dir="$(readlink -f -- "$1")"
+lock #creates a lock file, accepts parameter for different locks, i.e. lock stage1, would only lock stage1
 
-    if [[ "$dir" != "$BACKUP_ROOT/"* ]]; then
-        err "Refusing unsafe path: $dir"
-        return 1
+BACKUP_DIR="/tank/backup/system-backups/main"
+
+KEEP_DAILY=14
+KEEP_WEEKLY=4
+KEEP_MONTHLY=12
+
+cd "$BACKUP_DIR"
+
+now=$(date +%s)
+
+declare -A kept_week
+declare -A kept_month
+
+inf "pruning system backups"
+
+inf "looking for partial deletes of a previous run"
+if find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -name "*.deleteMe" -print -quit | grep -q .; then
+    wrn "partial delete found. tidying up..."
+    find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -name "*.deleteMe" -exec rm -rf -- {} +
+fi
+
+for d in $(ls -1d 20* | sort -r); do
+    ts=$(date -d "$d" +%s)
+    age_days=$(( (now - ts) / 86400 ))
+
+    week=$(date -d "$d" +%G-%V)
+    month=$(date -d "$d" +%Y-%m)
+
+    keep=false
+
+    if (( age_days < KEEP_DAILY )); then
+        keep=true
+
+    elif (( age_days < KEEP_DAILY + KEEP_WEEKLY*7 )); then
+        if [[ -z ${kept_week[$week]+x} ]]; then
+            kept_week[$week]=1
+            keep=true
+        fi
+
+    elif (( age_days < 365 )); then
+        if [[ -z ${kept_month[$month]+x} ]]; then
+            kept_month[$month]=1
+            keep=true
+        fi
     fi
 
-    if [[ ! -d "$dir" ]]; then
-        wrn "Skipping non-directory: $dir"
-        return 0
+    if $keep; then
+        inf "KEEP   $d"
+    else
+        inf "DELETE $d"
+        # comment the following 2 lines for a test run
+        mv "$d" "$d".deleteMe #mark to protect against partial deletes
+        rm -rf -- "$d".deleteMe
     fi
-
-    if [[ "$dir" == *.deleteMe ]]; then
-        vrb "Already marked: $dir"
-        return 0
-    fi
-
-    inf "Marking for deletion: $dir"
-    mv -- "$dir" "$dir.deleteMe"
-}
-
-###############################################################################
-# Permanent delete (second phase)
-###############################################################################
-final_delete() {
-    local dir
-    dir="$(readlink -f -- "$1")"
-
-    if [[ "$dir" != "$BACKUP_ROOT/"* ]]; then
-        err "Refusing unsafe path: $dir"
-        return 1
-    fi
-
-    inf "Permanently deleting: $dir"
-    rm -rf -- "$dir"
-}
-
-###############################################################################
-# Pruning helper (phase 1)
-###############################################################################
-prune() {
-    local mtime="$1"
-    shift
-
-    while IFS= read -r -d '' dir; do
-        mark_delete "$dir"
-    done < <(
-        find "$BACKUP_ROOT" \
-            -mindepth 1 -maxdepth 1 \
-            -type d \
-            -mtime "$mtime" \
-            ! -name '*.deleteMe' \
-            "$@" \
-            -print0
-    )
-}
-
-###############################################################################
-# Safety guard: ensure at least 10 valid backups remain
-###############################################################################
-validate_minimum_backups() {
-    local count
-
-    count=$(find "$BACKUP_ROOT" \
-        -mindepth 1 -maxdepth 1 \
-        -type d \
-        ! -name '*.deleteMe' \
-        -mtime -15 \
-        | wc -l)
-
-    inf "Intending to keep $count backups"
-
-    if (( count < 10 )); then
-        err "Retention guard triggered: fewer than 10 recent backups remain. Aborting permanent deletion."
-    fi
-}
-
-###############################################################################
-# Safety guard: ensure that not too many backups are deleted at once
-###############################################################################
-validate_maximum_backups() {
-    local count
-
-    count=$(find "$BACKUP_ROOT" \
-        -mindepth 1 -maxdepth 1 \
-        -type d \
-        -name '*.deleteMe' \
-        | wc -l)
-
-    inf "Intending to delete $count backups"
-
-    if (( count > 5 )); then
-        err "Retention guard triggered: to many deletions. Aborting permanent deletion. Please check an delete manually"
-    fi
-}
-
-
-###############################################################################
-# Phase 1: Mark old backups
-###############################################################################
-
-inf "Pruning daily backups"
-
-prune +14 \
-    ! -name '*-01T*' \
-    ! -name '*-10T*' \
-    ! -name '*-20T*'
-
-inf "Pruning 10-daily backups"
-prune +90 \
-    ! -name '*-01T*'
-
-inf "Pruning monthly backups"
-prune +800 #keep last 2+ years
-
-###############################################################################
-# Phase 2: Safety validation
-###############################################################################
-
-validate_minimum_backups
-validate_maximum_backups
-
-###############################################################################
-# Phase 3: Permanent deletion of marked backups
-###############################################################################
-
-inf "Permanent deletion of *.deleteMe backups"
-
-while IFS= read -r -d '' dir; do
-    final_delete "$dir"
-done < <(
-    find "$BACKUP_ROOT" \
-        -mindepth 1 -maxdepth 1 \
-        -type d \
-        -name '*.deleteMe' \
-        -print0
-)
-
-inf available backups:
-ls "$BACKUP_ROOT"
+done
 
 success
-inf "=== === done === ==="
