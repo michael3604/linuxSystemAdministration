@@ -1,6 +1,6 @@
 #!/bin/bash
-source /scripts/lib/lock.lib.bsh
-source /scripts/lib/messages.lib.bsh
+source (dirname "$0")/lib/lock.lib.bsh
+source (dirname "$0")/lib/messages.lib.bsh
 
 inf "=== === checks on certain days if the external HDD is still mounted past a certain time === ==="
 

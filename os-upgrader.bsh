@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -euo pipefail
-source /scripts/lib/lock.lib.bsh
+source (dirname "$0")/lib/lock.lib.bsh
 lock
 
 needrestart --version > /dev/null || apt install -y needrestart
