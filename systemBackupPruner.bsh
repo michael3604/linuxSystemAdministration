@@ -4,9 +4,9 @@ set -euo pipefail
 
 title="Prune system backups"
 
-source (dirname "$0")/lib/lock.lib.bsh # for creating lock files
-source (dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging>
-source (dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging>
+source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
 
 #argDefineBool    "help"           "h" "show help"                     #creates optional argument help
 #argDefineBool    "verbose"        "v" "Enable verbose mode"   #creates optional argument verbosity

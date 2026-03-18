@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-#set -x
 
 title="Pushes scripts from testing to git and/or pulls them from git to local production."
 scriptsBaseFolder="/opt/linuxSystemAdministration/testing/"

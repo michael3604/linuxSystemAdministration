@@ -4,10 +4,11 @@ set -euo pipefail
 
 title="Bash template file for sending probes around the solar system."
 
-source (dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below)
-source (dirname "$0")/lib/lock.lib.bsh # for creating lock files
-source (dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
-source (dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
+
 
 argDefineBool    "help"           "h" "show help"                     #creates optional argument help
 argDefineBool    "verbose"        "v" "Enable verbose mode"   #creates optional argument verbosity

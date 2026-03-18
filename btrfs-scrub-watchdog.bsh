@@ -1,8 +1,8 @@
 #!/bin/bash
 
-source (dirname "$0")/lib/lock.lib.bsh
-source (dirname "$0")/lib/messages.lib.bsh
-source (dirname "$0")/lib/success.lib.bsh
+source $(dirname "$0")/lib/lock.lib.bsh
+source $(dirname "$0")/lib/messages.lib.bsh
+source $(dirname "$0")/lib/success.lib.bsh
 
 inf "=== === checking btrfs scrub status of attached disks === ==="
 

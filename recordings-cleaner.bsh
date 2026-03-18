@@ -21,9 +21,9 @@ exit 0
 
 #defaults
 set -euo pipefail
-source (dirname "$0")/lib/lock.lib.bsh
-source (dirname "$0")/lib/messages.lib.bsh
-source (dirname "$0")/lib/success.lib.bsh
+source $(dirname "$0")/lib/lock.lib.bsh
+source $(dirname "$0")/lib/messages.lib.bsh
+source $(dirname "$0")/lib/success.lib.bsh
 
 # === Argument parsing ===
 if [[ "${1:-}" == "--help" || "${2:-}" == "--help" || "${3:-}" == "--help" ]]; then
