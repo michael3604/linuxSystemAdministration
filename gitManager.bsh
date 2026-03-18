@@ -123,7 +123,7 @@ if [[ $pull -eq 1 ]]; then
     git reset --hard origin/main
     if [[ "$oldHead" != $(git rev-parse HEAD) ]]; then
       # if called by another script, elevating update info to warning
-      if [[ $SHLVL -ge 2 ]] ; then
+      if [[ $SHLVL -ge 3 ]] ; then
         wrn "local repo updated: $oldHead -> $(git rev-parse HEAD)"
       else
         inf "local repo updated: $oldHead -> $(git rev-parse HEAD)"
