@@ -139,7 +139,7 @@ if [[ $pull -eq 1 ]]; then
   rm -rf "$dest".inwork #cleanup
   rm -rf "$dest" #cleanup
   mkdir -p "$dest".inwork #suffix helps detecting partial downloads, etc.
-  chmod -R a-w "$download"* #additional protection for production scripts
+  chmod -R a-w "$download" #additional protection for production scripts
   cp -a "$download"* "$dest".inwork
   mv "$dest".inwork "$dest" #atomic operation
   inf "repo downloaded to $dest"
