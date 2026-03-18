@@ -4,6 +4,7 @@ set -euo pipefail
 
 title="Pushes scripts from testing to git and/or pulls them from git to local production."
 scriptsBaseFolder="/opt/linuxSystemAdministration/testing/"
+download="/opt/linuxSystemAdministration/download/"
 base="/opt/linuxSystemAdministration/production"
 validationFilePushPath="$scriptsBaseFolder"".validation"
 validationFilePushTemp="$(mktemp)"
@@ -14,16 +15,17 @@ secret="$(<"${secretFile}")"
 repo="https://github.com/michael3604/linuxSystemAdministration.git"
 
 
-source /scripts/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below)
-source /scripts/lib/lock.lib.bsh # for creating lock files
-source /scripts/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
-source /scripts/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below)
+source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
 
-argDefineBool    "help"           "h" "show help"                     #creates optional argument help
-argDefineBool    "verbose"        "v" "Enable verbose mode"   #creates optional argument verbosity
-argDefineValue   "push"           "p" "push comments. also triggers push" optional
-argDefineBool    "validate"       "a" "validates the scripts using the validation file"
-argDefineBool    "pull"           "g" "pulls scripts from git and deploys them"
+argDefineBool    "help"           "h" "show help"
+argDefineBool    "verbose"        "v" "Enable verbose mode"
+argDefineValue   "send"           "s" "push to github. requires commit notes as parameters." optional
+#argDefineBool    "validate"       "a" "validates the scripts using the validation file"
+argDefineBool    "push"           "p" "pulls scripts from git and deploys them"
+argDefineBool    "reset"          "r" "resets the download folder"
 
 
 argParse "$@" #parses the actual arguments according to the definitions above
@@ -47,6 +49,7 @@ calculate() {
     # Prepare header for table
 printf "%-64s  %s\n" "HASH" "FILE" | tee "$outputFile"
 
+###ToDo: this should get simpler. maybe printf is not needed, but the regular output of openssl could be used?
 git ls-files --cached --others --exclude-standard -z \
 | while IFS= read -r -d '' file; do
     [[ -f "$file" && "$file" != "$relValidation" ]] || continue
@@ -59,7 +62,7 @@ done
 }
 
 
-[[ "$push" = "" && $(($validate + $pull)) = 0 ]] && err "at least one option must be used"
+[[ "$push" = "" && $(($validate + $pull +$reset)) = 0 ]] && err "at least one option must be used"
 
 ### ============================
 ### push local scripts to github
@@ -92,41 +95,60 @@ if ! [[ "$push" = "" ]]; then
   git commit -m "$push" #commit changes
   git push origin main --force #force push to remove remote files not present locally (like rsync --delete)
   vrb  "Local changes mirrored to GitHub successfully."
+  if [[ $pull -eq 0 ]]; then
+    wrn "no get requested! Latest version has not been deployed locally."
+  fi
 
 fi
 
 if [[ $pull -eq 1 ]]; then
-  tmp=$(mktemp -d)
   tmpVal=$(mktemp)
+  if [[ $reset -eq 1 ]]; then
+    wrn "removing download folder"
+    rm -rf "download"
+  fi
+  if [[ ! -d "$download/.git" ]]; then
+    mkdir -p "$download"
+    wrn "creating initial clone of repo"
+    git clone "$repo" "$download"
+  else
+    cd "$download"
+    oldHead=$(git rev-parse HEAD)
+    git fetch --all
+    git reset --hard origin/main
+    if [[ "$oldHead" != $(git rev-parse HEAD) ]]; then
+      inf "Repo updated: $oldHead -> $(git rev-parse HEAD)"
+    else
+      inf "Repo already up to date."
+      temp exit 0
+    fi
+  fi
 
-  # get latest commit hash from remote
-  commit=$(git ls-remote "$repo" refs/heads/main | cut -f1)
-
-  # fetch only that commit
-  git init "$tmp/repo"
-  cd "$tmp/repo"
-  git remote add origin "$repo"
-  git fetch --depth 1 origin "$commit"
-  git checkout FETCH_HEAD
   #validate download
-  calculate "$tmp/repo/.validation" "$tmpVal"
+  calculate "$download/.validation" "$tmpVal"
   vrb "diffing..."
-  set -x
-  cat "$tmpVal"
-  cat "$tmp/repo/.validation" 
-  diff "$tmpVal" "$tmp/repo/.validation" || err "Validation failed! Check hashes in validation file!"
-  inf "validation complete"
-  exit 1
-  # extract commit date
-  commit_date=$(git show -s --format=%cI HEAD)
+  if [[ $verbose -eq 1 ]]; then
+    vrb "validation recalculated from files:"
+    cat "$tmpVal"
+    vrb "stored calculation file:"
+    cat "$download/.validation"
+  fi
+  diff "$tmpVal" "$download/.validation" || err "Validation failed! Check hashes in validation file!"
+  inf "validation successful"
 
+  # create production folder
+  commit_date=$(git show -s --format=%cI HEAD) # extract commit date
   dest="$base/$commit_date"
-
+  rm -rf "$dest".inwork #cleanup
+  rm -rf "$dest" #cleanup
   mkdir -p "$dest".inwork #suffix helps detecting partial downloads, etc.
-  cp -a . "$dest".inwork
+  chmod -R a-w "$download"* #additional protection for production scripts
+  cp -a "$download"* "$dest".inwork
   mv "$dest".inwork "$dest" #atomic operation
-
   inf "repo downloaded to $dest"
+
+  # deploy
+  ln -sfn "$dest" "/scripts"
 fi
 
 
