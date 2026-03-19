@@ -4,6 +4,16 @@ set -euo pipefail
 source $(dirname "$0")/lib/lock.lib.bsh
 source $(dirname "$0")/lib/messages.lib.bsh
 source $(dirname "$0")/lib/success.lib.bsh
+source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
+
+argDefineBool     "prepare"    "e" "stop other instances of this script, remove old snapshot and datefile"
+argDefineBool     "snapshot"   "s" "stop other instances of this script, create new snapshots"
+argDefineBool     "backup"     "b" "stop other instances of this script, start the actual backup"
+argDefineBool     "interrupt"  "i" "stop other instances of this script."
+argDefineBool     "validate"   "a" "validate backup"
+argDefineBool     "prune"      "u" "prunes remote backup"
+
+argParse "$@" #parses the actual arguments according to the definitions above
 
 ############################################
 # CONFIG
@@ -330,30 +340,26 @@ cmd_prune() {
 # ENTRYPOINT
 ############################################
 
-case "${1:-}" in
-    prepare|"-pre")
-        interrupt_stray_borg
-        cmd_prepare
-        ;;
-    snapshot|"-s")
-        interrupt_stray_borg
-        cmd_snapshot
-        ;;
-    backup|"-b")
-        interrupt_stray_borg
-        cmd_backup
-        ;;
-    interrupt|"-i")
-        interrupt_stray_borg
-        ;;
-    validate|"-v")
-        cmd_validate_remote_repo
-        ;;
-    prune|"-pru")
-        cmd_prune
-        ;;
-    *)
-        echo "Usage: $0 {prepare|snapshot|backup|interrupt|validate|prune|mount-latest}"
-        exit 1
-        ;;
-esac
+[[ $(($prepare + $snapshot + $backup + $interrupt + $validate + $prune)) = 0 ]] && err "at least one option must be used"
+
+if [[ "$prepare" -eq 1 ]] ; then
+  interrupt_stray_borg
+  cmd_prepare
+fi
+if [[ "$snapshot" -eq 1 ]] ; then
+  interrupt_stray_borg
+  cmd_snapshot
+fi
+if [[ "$backup" -eq 1 ]] ; then
+  interrupt_stray_borg
+  cmd_backup
+fi
+if [[ "$interrupt" -eq 1 ]] ; then
+  interrupt_stray_borg
+fi
+if [[ "$validate" -eq 1 ]] ; then
+  cmd_validate_remote_repo
+fi
+if [[ "$prune" -eq 1 ]] ; then
+  cmd_prune
+fi

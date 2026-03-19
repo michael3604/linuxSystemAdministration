@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+title="checks free disk space in percent"
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+
 # "path:min_free_percent:required"
 CHECKS=(
   "/:25:1"
@@ -20,11 +23,9 @@ check_normal_fs() {
     free=$((100 - used))
 
     if (( free < min_free )); then
-        echo "CRITICAL: $path only ${free}% free (min ${min_free}%)"
-        status=1
-        sudo /scripts/pushover.bsh "CRITICAL: $path only ${free}% free (min ${min_free}%)"
+        wrn "$path only ${free}% free (min ${min_free}%)"
     else
-        echo "OK: $path has ${free}% free"
+        inf "$path has ${free}% free"
     fi
 }
 
@@ -37,16 +38,16 @@ check_zfs_pool() {
     pool=${pool%%/*}
 
     if [[ -z "$pool" ]]; then
-        sudo /scripts/pushover.bsh "CRITICAL: cannot determine ZFS pool for $mount"
+        err "cannot determine ZFS pool for $mount"
     fi
 
     used=$(zpool list -Hp -o capacity "$pool" | tr -d '%')
     free=$((100 - used))
 
     if (( free < min_free )); then
-        sudo /scripts/pushover.bsh "CRITICAL: ZFS pool $pool only ${free}% free (min ${min_free}%)"
+        wrn "ZFS pool $pool only ${free}% free (min ${min_free}%)"
     else
-        echo "OK: ZFS pool $pool has ${free}% free"
+        inf "ZFS pool $pool has ${free}% free"
     fi
 }
 
@@ -56,10 +57,9 @@ for entry in "${CHECKS[@]}"; do
 
     if [[ ! -e "$path" ]]; then
         if [[ "$required" == "1" ]]; then
-            /scripts/pushover.bsh "CRITICAL: required path $path missing"
-            status=1
+            err "required path $path missing"
         else
-            echo "SKIP: $path not present"
+            vrb "SKIP: $path not present"
         fi
         continue
     fi
@@ -72,5 +72,3 @@ for entry in "${CHECKS[@]}"; do
         check_normal_fs "$path" "$min"
     fi
 done
-
-[[ $status -lt 1 ]] || exit 1
