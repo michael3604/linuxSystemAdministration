@@ -74,8 +74,9 @@ err() {
 }
 
 #displaying title when called by another script for improved log readabilty
+
 if [[ $SHLVL -ge 3 ]] ; then
-  inf "=== === === $title === === ==="
+  inf "=== === === ${title:-$(basename "$0")} === === ==="
 else
-  vrb "=== === === $title === === ==="
+  vrb "=== === === ${title:-$(basename "$0")} === === ==="
 fi
