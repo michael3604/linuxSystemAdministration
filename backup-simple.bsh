@@ -23,7 +23,8 @@ if [ -d "/mnt/external-HDD/data/nextcloud-data" ]; then
     chown -R www-data:www-data "/mnt/external-HDD/data/nextcloudData"
 fi
 
-### check free space
+### make and check free space
+sudo rm -rf /mnt/external-HDD/data/mediaPool/media/2024 && wrn removed 2024 folder || true
 required_space=300  # in GB
 critical_space=100  # in GB
 available_space=$(( $(df --output=avail /mnt/external-HDD | tail -n 1) / 1000000)) # in GB
@@ -75,7 +76,6 @@ if [[ -f /mnt/external-HDD/bigDisk ]]; then
 else
     inf "small disk detected, making backup of most recent files of media pool."
     sudo sudo rsync -av --delete --mkpath --exclude media/ "$source"/ /mnt/external-HDD/data/mediaPool # backup everything but "media"
-    sudo rm -rf /mnt/external-HDD/data/mediaPool/media/2024 && wrn removing 2024 folder || true
     sudo rsync -av --delete --mkpath "$source"/media/2025/ /mnt/external-HDD/data/mediaPool/media/2025
     sudo rsync -av --delete --mkpath "$source"/media/2026/ /mnt/external-HDD/data/mediaPool/media/2026
 fi
@@ -85,7 +85,7 @@ sudo rsync -av --delete /tank/backup/google/ /mnt/external-HDD/data/google
 
 # scrub if required
 # move scrub/unmount until after OS upgrade.
-if ! [[ $(sudo find /mnt/external-HDD -maxdepth 1 -type f -name "scrubbed" -mtime -30) ]] ; then
+if ! [[ $(sudo find /mnt/external-HDD -maxdepth 1 -type f -name "scrubbed" -mtime -180) ]] ; then
     inf "starting to scrub. This may take some time."
     sudo btrfs scrub start -B /mnt/external-HDD || wrn "btrfs Errors found on external-HDD"
     inf "scrub result:"
@@ -110,4 +110,3 @@ fi
 ### checking if touched-daily has arrived
 [[ ! -z `sudo find /mnt/external-HDD/data/nextcloudData/$source_basename -maxdepth 1 -mindepth 1 -name "touchedDaily" -mtime -0.8` ]] || wrn "Alarm! Backups 'touched-daily' is not up to date!"
 success
-inf === === done === ===
