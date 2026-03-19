@@ -1,8 +1,7 @@
 #!/bin/bash
+title="checks if external HDD is still mounted past a certain time on a certain weekday."
 source $(dirname "$0")/lib/lock.lib.bsh
 source $(dirname "$0")/lib/messages.lib.bsh
-
-inf "=== === checks on certain days if the external HDD is still mounted past a certain time === ==="
 
 lock
 
@@ -54,5 +53,3 @@ if [[ $valid_day -eq 1 ]]; then
 else
     inf "no detachment of HDD planned for today. exiting."
 fi
-
-inf "=== === done === ==="

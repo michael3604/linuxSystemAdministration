@@ -1,10 +1,18 @@
 #!/bin/bash
 set -euo pipefail
+title="mounts encrypted backup HDD"
+
+source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
+argParse "$@" #parses the actual arguments according to the definitions above
 
 # preparation
 #	mkdir -p /mnt/external-HDD
 #	chattr +i /mnt/external-HDD
 #	sudo apt install cryptsetup
+
+[[ -d /mnt/external-HDD/data ]] && err "a disk seems to be mounted already."
 
 ### unmount external-HDD to create a known state
 sudo umount /mnt/external-HDD 2>/dev/null || true
@@ -25,10 +33,8 @@ for p in "${partitions[@]}"; do
 		break
 	fi
 done
-echo encrypted disk: "$partition"
+vrb encrypted disk: "$partition"
 sudo cryptsetup luksOpen "$partition" backup-data --key-file /root/keyfiles/backupHDD/backup-HDD.key || true # open encrypted partition
 sudo mount /dev/mapper/backup-data /mnt/external-HDD || true # mount encrypted virtual file system
-if [[ ! -d /mnt/external-HDD/data ]] ; then
-	echo "error mounting external HDD"
-	exit 1
-fi
+[[ -d /mnt/external-HDD/data ]] || err "error mounting external HDD"
+inf "$partition mounted to /mnt/external-HDD"

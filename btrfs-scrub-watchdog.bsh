@@ -1,10 +1,10 @@
 #!/bin/bash
 
+title="checks btrfs scrub logs and looks for errors"
+
 source $(dirname "$0")/lib/lock.lib.bsh
 source $(dirname "$0")/lib/messages.lib.bsh
 source $(dirname "$0")/lib/success.lib.bsh
-
-inf "=== === checking btrfs scrub status of attached disks === ==="
 
 #btrfs (from local log files)
 for i in /var/lib/btrfs/scrub.status* ; do
@@ -17,5 +17,3 @@ for i in /var/lib/btrfs/scrub.status* ; do
     fi
 done
 #zfs ###ToDo
-
-inf "=== === done === ==="
