@@ -6,13 +6,13 @@ source $(dirname "$0")/lib/success.lib.bsh
 set +e #continue even after errors
 
 lock
+/scripts/freeSpace.bsh || err "free space error, aborting script"
 
 mkdir -p /var/log/nmrCloud
 
 ### preprocessing
-inf "================= starting daily tasks ================="
 # use api to set maintenance mode to 2 (2 = do not disturb, 1 = busy, 0 = available)
-/scripts/backup-borg.bsh prepare
+/scripts/backup-borg.bsh --prepare
 
 inf "=== snapshots and local backups ==="
 inf "getting list of containers and stopping them"
@@ -31,21 +31,19 @@ else
 fi
 inf "creating snapshots"
 /scripts/zfs-snapshot-manager.py
-/scripts/backup-borg.bsh snapshot
+/scripts/backup-borg.bsh --snapshot
 inf "restarting containers"
 for i in $containers; do echo "starting" $i; sudo -u user76 /snap/bin/lxc start $i ; done && echo "...done"# start all containers previously stopped
 docker start $containersDocker
 ### ToDo: Check if nextcloud is running. maybe a public link and wget a file?
 
-inf "=== backup to external HDD ==="
+#inf "=== backup to external HDD ==="
 sudo /scripts/external-HDD-mounter.bsh
 sudo /scripts/external-HDD-mount-checker.bsh &
 sudo /scripts/backup-simple.bsh || wrn "local backup went wrong."
 sudo /scripts/external-HDD-unmounter.bsh || wrn "unmounting of local HDD went wrong"
 
 inf "=== system maintenance ==="
-inf checking log folder size
-du -sm /var/log | awk '$1 < 500 {exit 0} {exit 1}' || wrn "log files are getting too big"
 inf deleting old log files
 find /var/log/nmrCloud/ -type f -mtime +30 -delete
 inf backing up crontab
@@ -84,18 +82,16 @@ inf "downloading Lenas iCloud"
 ( sudo -u user76 /snap/bin/lxc exec mainGoogleBackup -- /root/googleBackup.bsh ) || sudo /scripts/pushover.bsh "google backup error"
 inf "verifiying google Backup"
 /scripts/googleEmailBackupValidator.bsh
-/scripts/freeSpace.bsh || sudo /scripts/pushover.bsh "freeSpace error"
 ### chown of iCloudPD files not neccessary, because users of both containers happen to have the same uid. otherwise use either --shift in lxc devices or chown with groups.
 inf scrubbing root
 btrfs scrub start -B / # scrub in foreground and display errors, ToDo: grep for problems
 inf "backing up main root"
-/scripts/backup-root-main.bsh
 /scripts/os-upgrader.bsh
 ###ToDo: start ext HDD scrubber here but in the background, and not on mondays or fridays
 #sleep 12h #uncomment this line to delay the off-site-backup if required.
-/scripts/backup-borg.bsh backup
-/scripts/backup-borg.bsh prune
+/scripts/backup-borg.bsh --backup
+/scripts/backup-borg.bsh --prune
 ### postprocessing
 # monthly zfs scrubber
 success
-inf "================= completed ================="
+inf "$0 completed"

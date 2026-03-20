@@ -10,6 +10,8 @@
 #   - required and defaulted values
 #   - positional parameters with help text
 #   - strict mode (set -euo pipefail)
+# Requires
+#   - messages.lib.bsh
 # ============================================================
 
 # ============================================================
@@ -202,7 +204,7 @@ argParse() {
                     shift
 
                     if (( $# == 0 )); then
-                        __arg_error "Option --$opt requires a value (see also --help)"
+                        err "Option --$opt requires a value (see also --help)"
                     fi
 
                     __arg_set_long "$opt" "$1"
@@ -238,7 +240,7 @@ argParse() {
                         fi
                     done
 
-                    [[ -z "$name" ]] && __arg_error "Unknown argument -$c (see also --help)"
+                    [[ -z "$name" ]] && err "Unknown argument -$c (see also --help)"
 
                     if [[ "${__ARG_TYPE[$name]}" == "bool" ]]; then
 
@@ -259,7 +261,7 @@ argParse() {
                         # case: -r VALUE
 
                         if (( $# == 0 )); then
-                            __arg_error "Option -$c requires a value (see also --help)"
+                            err "Option -$c requires a value (see also --help)"
                         fi
 
                         value="$1"
@@ -297,7 +299,7 @@ __arg_set_long() {
     local value="$2"
 
     if [[ -z "${__ARG_TYPE[$name]+x}" ]]; then
-        __arg_error "Unknown argument --$name (see also --help)"
+        err "Unknown argument --$name (see also --help)"
     fi
 
     if [[ "${__ARG_TYPE[$name]}" == "bool" ]]; then
@@ -323,7 +325,7 @@ __arg_validate_required() {
 
             eval "val=\"\$$name\""   # indirect variable access
 
-            [[ -z "$val" ]] && __arg_error "Missing required option --$name (see also --help)"
+            [[ -z "$val" ]] && err "Missing required option --$name (see also --help)"
         fi
 
     done
@@ -335,7 +337,7 @@ __arg_assign_positionals() {
     local actual_count="${#__ARG_POSITIONAL_VALUES[@]}"
 
     if [ "$actual_count" -gt "$expected_count" ]; then
-        __arg_error "Too many parameters (see also --help)"
+        err "Too many parameters (see also --help)"
     fi
 
     local i=0
@@ -348,7 +350,7 @@ __arg_assign_positionals() {
         local pval="${__ARG_POSITIONAL_VALUES[$i]-}"
 
         if [ -z "$pval" ]; then
-            __arg_error "Missing parameter $pname (see also --help)"
+            err "Missing parameter $pname (see also --help)"
         fi
 
         printf -v "$pname" '%s' "$pval"
@@ -357,14 +359,6 @@ __arg_assign_positionals() {
 
     done
 }
-
-__arg_error() {
-
-    echo "Argument error: $1" >&2
-
-    exit 2
-}
-
 
 argDefineBool    "help"           "h" "show help"
 argDefineBool    "verbose"        "v" "Enable verbose mode"
