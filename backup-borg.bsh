@@ -130,6 +130,19 @@ mount_snapshots() {
     mount -t zfs "${DATASET_MEDIA}@${SNAPNAME}" "$MOUNT_MEDIA" || err "Failed to mount snapshot ${DATASET_MEDIA}@${SNAPNAME} $MOUNT_MEDIA"
 }
 
+check_remote_availability() {
+local attempt=1
+until [[ "$(ssh -J user@mainssh:22 user@localhost -p 45022 cat /etc/hostname)" = "bak01" ]]  ; do ###todo: respect variables
+    if (( attempt <= 60 )); then
+        inf "ssh failed on attempt $attempt. retrying..."
+        sleep 60
+    else
+        err "ssh failed after last attempt"
+    fi
+    ((attempt++))
+done
+}
+
 check_remote_space() {
     local min_gb=200
 
@@ -351,6 +364,7 @@ if [[ "$snapshot" -eq 1 ]] ; then
   cmd_snapshot
 fi
 if [[ "$backup" -eq 1 ]] ; then
+  check_remote_availability
   interrupt_stray_borg
   cmd_backup
 fi
@@ -358,8 +372,10 @@ if [[ "$interrupt" -eq 1 ]] ; then
   interrupt_stray_borg
 fi
 if [[ "$validate" -eq 1 ]] ; then
+  check_remote_availability
   cmd_validate_remote_repo
 fi
 if [[ "$prune" -eq 1 ]] ; then
+  check_remote_availability
   cmd_prune
 fi

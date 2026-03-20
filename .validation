@@ -1,13 +1,13 @@
 HASH                                                              FILE
 a2203d37aaef381923f635656d80838bcb3d309b84aa2fadbca315f0b6020d01  .gitignore
 22acf109d7fa678ad2d5a731ab7284e9b138aad98b6922ba15f766af0164e33e  LICENSE
-e86ca8cbb1922c0dd022ceaa078cee21fab158895b8b39e01187972fc17ae04e  backup-borg.bsh
+054c651ce1f02054ecb173e9c1377dba24e2ff36d2987e1be8bbfa45fbafeab6  backup-borg.bsh
 d46db684383520ea786b89827ad38cd1b64aa6aefe1f7ac92b9478ce17adedd8  backup-root-main.bsh
 e9cd3e75c6f11399b9ada025491a348e0bc163e818a64e0aeb95bb566f9ab249  backup-simple.bsh
 eb3e255f488ba9a46c13eb0204be70352b47baf6154770045b84605fc241a340  btrfs-scrub-watchdog.bsh
 6b735fc61cabb74f10752d9f8747a4427f2eb9a401a95252e458637f2aa7cc84  btrfs-snapshot-manager.py
 f4dd65fc70d5b0a66faa33ade6ad5295b7e654035841703c8d8fd4a5f1996c57  crontabs/crontab.main
-dfff25eb2bbc3b6cf0808fa3b9ec0f119467d8fb76f1fcaa01e8119b4241e7c9  dailyMain.bsh
+bf82b48ded1e32e98498bfb18c20e6b20302bdb5566fa55fe560677ffa960a4c  dailyMain.bsh
 39dd7fd783ec5c02c3e7c2b707829e8073c05feb15c8d3f53394b8da82245f54  external-HDD-mount-checker.bsh
 f490adbdd38823e4b62a39a090397df0a6c6c52d567a5e1a489c86a156ba6a05  external-HDD-mounter.bsh
 606bf9d5d393e8eaa3e7095e3d9714000f0f249bf347077efc8be7da4ea43260  external-HDD-unmounter.bsh

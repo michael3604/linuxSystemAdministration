@@ -89,8 +89,8 @@ inf "backing up main root"
 /scripts/os-upgrader.bsh
 ###ToDo: start ext HDD scrubber here but in the background, and not on mondays or fridays
 #sleep 12h #uncomment this line to delay the off-site-backup if required.
-/scripts/backup-borg.bsh --backup
-/scripts/backup-borg.bsh --prune
+/scripts/backup-borg.bsh --backup || wrn "borg backup failed"
+/scripts/backup-borg.bsh --prune || wrn "borg pruning failed"
 ### postprocessing
 # monthly zfs scrubber
 success
