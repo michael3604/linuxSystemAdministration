@@ -1,34 +1,38 @@
 #!/bin/bash
 set -euo pipefail
+title="Backup to external HDD"
 
 source $(dirname "$0")/lib/lock.lib.bsh
 source $(dirname "$0")/lib/messages.lib.bsh
 source $(dirname "$0")/lib/success.lib.bsh
 
-inf === === Backup to external HDD === ===
 lock
 
 if ! mountpoint /mnt/external-HDD/ ; then
     err "/mnt/external-HDD is not a mountpoint. please check if external disk is attached."
 fi
 
+### adapting old backups to new architecture as of 2026-02
 if [ -d "/mnt/external-HDD/data/media_pool" ]; then
     wrn renaming and chowning backup files "/mnt/external-HDD/data/media_pool"
     mv "/mnt/external-HDD/data/media_pool" "/mnt/external-HDD/data/mediaPool"
     chown -R 1001000:1001000 "/mnt/external-HDD/data/mediaPool"
 fi
 if [ -d "/mnt/external-HDD/data/nextcloud-data" ]; then
-    wrn renaming and chowning backup files "/mnt/external-HDD/data/nextcloud-data"
-    mv "/mnt/external-HDD/data/nextcloud-data" "/mnt/external-HDD/data/nextcloudData"
-    chown -R www-data:www-data "/mnt/external-HDD/data/nextcloudData"
+    wrn deleting old backup folder "/mnt/external-HDD/data/nextcloud-data"
+    rm -rf "/mnt/external-HDD/data/nextcloud-data"
+    mkdir -p "/mnt/external-HDD/data/nextcloudData"
 fi
 
-### make and check free space
-sudo rm -rf /mnt/external-HDD/data/mediaPool/media/2024 && wrn removed 2024 folder || true
+# pruning old media backups of small disks
+if ! [[ -f /mnt/external-HDD/bigDisk ]]; then
+  rm -rf /mnt/external-HDD/data/mediaPool/media/2024 || true
+fi
+
+# check free space
 required_space=300  # in GB
 critical_space=100  # in GB
 available_space=$(( $(df --output=avail /mnt/external-HDD | tail -n 1) / 1000000)) # in GB
-
 if [ "$available_space" -ge "$required_space" ]; then
     inf "Sufficient space available: ${available_space} GB."
 elif [ "$available_space" -ge "$critical_space" ]; then
@@ -37,8 +41,7 @@ else
     err "Not enough space on backup disk. Available: ${available_space} GB, Required: ${required_space} GB."
 fi
 
-
-inf === versioned backup of nextcloud ===
+inf "=== versioned backup of nextcloud ==="
 source_basename=$(basename $(find /tank/nextcloudData/.zfs/snapshot/ -maxdepth 1 -mindepth 1 -name backup_????-??-??T??:??:??UTC | sort | tail -1))
 if ! lastbak_basename=$(basename $(find /mnt/external-HDD/data/nextcloudData/ -maxdepth 1 -mindepth 1 -name backup_????-??-??T??:??:??UTC* | sort | tail -1)); then
     wrn "no previous backup found on external disk. Creating dummy."
@@ -59,15 +62,15 @@ else
     rm -R /mnt/external-HDD/data/nextcloudData/000 || true # remove dummy version from initial setup of backup-HDD
 fi
 
-### remove backups older than 400 days, keeping the youngest 5 backups after that to make sure a very old disks does not get wiped.
+inf "pruning backups"
 if [[ $( find /mnt/external-HDD/data/nextcloudData -maxdepth 1 -mindepth 1 -type d -mtime +400 | head -n -5 ) ]]; then
          find /mnt/external-HDD/data/nextcloudData -maxdepth 1 -mindepth 1 -type d -mtime +400 | head -n -5 | sudo xargs rm -R
 fi
 
-inf available backups:
+inf "available nextcloud backups:"
 find /mnt/external-HDD/data/nextcloudData -maxdepth 1 -mindepth 1
 
-inf "=== non-versioned backup of scripts, google and (most recent) lightroom files ==="
+inf "=== non-versioned backup of (most recent) media and lightroom files ==="
 source=$(find /tank/mediaPool/.zfs/snapshot/ -maxdepth 1 -mindepth 1 -name backup_????-??-??T??:??:??UTC | sort | tail -1)
 inf "Source is:  $source"
 if [[ -f /mnt/external-HDD/bigDisk ]]; then
@@ -96,7 +99,7 @@ if ! [[ $(sudo find /mnt/external-HDD -maxdepth 1 -type f -name "scrubbed" -mtim
 	touch /mnt/external-HDD/scrubbed
     fi
 else
-   inf no scrub of backup disk required
+   inf "no scrub of backup disk required"
 fi
 
 ### check free space (again)
