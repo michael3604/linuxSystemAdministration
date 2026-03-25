@@ -29,7 +29,7 @@ else
     vrb "touching testfile for future validation"
     sudo touch /tank/nextcloudData/touchedDaily
 fi
-inf "creating snapshots"
+inf "creating data snapshots"
 /scripts/zfs-snapshot-manager.py
 /scripts/backup-borg.bsh --snapshot
 inf "restarting containers"
@@ -44,6 +44,7 @@ sudo /scripts/backup-simple.bsh || wrn "local backup went wrong."
 sudo /scripts/external-HDD-unmounter.bsh || wrn "unmounting of local HDD went wrong"
 
 inf "=== system maintenance ==="
+/scripts/backup-root-main.bsh
 inf deleting old log files
 find /var/log/nmrCloud/ -type f -mtime +30 -delete
 inf backing up crontab
@@ -63,11 +64,6 @@ if [[ "$day" -ne 7 && "$day" -ne 1 ]]; then #if not monday or sunday
     [[ ! -z `find /temp/recordings -type f -mtime -1 ` ]] || wrn "no young recordings found!"
 fi
 
-inf "removing old backups of scripts made by editors"
-find /scripts -maxdepth 1 -mindepth 1 -name "*~*" -type f -mtime +3 -exec rm {} \;
-find /scripts -maxdepth 1 -mindepth 1 -name "*#*" -type f -mtime +3 -exec rm {} \;
-find /scripts -maxdepth 1 -mindepth 1 -name ".save" -type f -mtime +3 -exec rm {} \;
-
 inf "removing old backups of lightroom"
 find "/tank/mediaPool/Lightroom/Lightroom Catalogue Backups/" -maxdepth 1 -name "*20*" | sort | head -n -5 | while IFS= read -r dir; do
     inf removing "$dir"
@@ -75,8 +71,6 @@ find "/tank/mediaPool/Lightroom/Lightroom Catalogue Backups/" -maxdepth 1 -name 
 done
 /scripts/systemBackupPruner.bsh
 /scripts/recordings-cleaner.bsh
-inf "removing old system backups"
-find /tank/backup/system-backups/main -maxdepth 1 -mindepth 1 -mtime +90 -exec rm -r {} \;
 inf "downloading Lenas iCloud"
 ( sudo -u user76 /snap/bin/lxc exec mainICloudPD -- sudo -u lena /home/lena/iCloudPDDownloader.bsh )  || sudo /scripts/pushover.bsh "lenas icloud error. 2FA reset required?"
 ( sudo -u user76 /snap/bin/lxc exec mainGoogleBackup -- /root/googleBackup.bsh ) || sudo /scripts/pushover.bsh "google backup error"
