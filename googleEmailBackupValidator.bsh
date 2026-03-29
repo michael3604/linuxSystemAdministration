@@ -1,11 +1,19 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+#set -x
 
-echo "checking most recent Emails for Lena..."
-find /tank/backup/google/lena/email    -mtime  -3 -type f -name *"mainGoogleBackup,U="* -quit || sudo /scripts/pushover.bsh "Lena has no current emails in the backup"
-#echo "checking backup check email for Lena..."
-#find /tank/backup/google/lena/email    -mtime -35 -type f -print0 | xargs -0 grep -l "BACKUP-CHECK-KNIGHT-VALIANT-BLUE-TURF" || sudo /scripts/pushover.bsh "Lena does not have the backup check email in her backup"
-echo "checking most recent Emails for Michael..."
-find /tank/backup/google/michael/email -mtime  -3 -type f -name *"mainGoogleBackup,U="* -quit || sudo /scripts/pushover.bsh "Michael has no current emails in the backup"
-#echo "checking backup check email for Michael..."
-#find /tank/backup/google/michael/email -mtime -35 -type f -print0 | xargs -0 grep -l "BACKUP-CHECK-KNIGHT-VALIANT-BLUE-TURF" || sudo /scripts/pushover.bsh "Michael does not have the backup check email in the backup"
-echo "...done"
+title="Bash template file for sending probes around the solar system."
+
+source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+
+lock #creates a lock file, accepts parameter for different locks, i.e. lock stage1, would only lock stage1
+
+inf "checking Emails for Lena..."
+find /tank/backup/google/lena/email    -mtime  -3 -type f -name *"mainGoogleBackup,U="* -quit || wrn "Lena has no current emails in the backup"
+find /tank/backup/google/lena/email    -mtime -35 -type f -print0 | xargs -0 grep "BACKUP-CHECK-KNIGHT-VALIANT-BLUE-TURF" || wrn "Lena does not have the backup check email in her backup"
+echo "checking Emails for Michael..."
+find /tank/backup/google/michael/email -mtime  -3 -type f -name *"mainGoogleBackup,U="* -quit || wrn "Michael has no current emails in the backup"
+find /tank/backup/google/michael/email -mtime -35 -type f -print0 | xargs -0 grep "BACKUP-CHECK-KNIGHT-VALIANT-BLUE-TURF" || wrn "Michael does not have the backup check email in the backup"
+success
