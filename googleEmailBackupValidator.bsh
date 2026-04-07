@@ -40,8 +40,8 @@ USERS=("Adam" "Eve")
 
 # paths
 declare -A EMAIL_PATHS
-EMAIL_PATHS[Lena]="/tank/backup/google/adam/email"
-EMAIL_PATHS[Michael]="/tank/backup/google/eve/email"
+EMAIL_PATHS[Adam]="/tank/backup/google/adam/email"
+EMAIL_PATHS[Eve]="/tank/backup/google/eve/email"
 
 # parameters
 EMAIL_MAX_AGE_DAYS=3
