@@ -2,23 +2,24 @@
 
 set -euo pipefail
 source $(dirname "$0")/lib/lock.lib.bsh
+source $(dirname "$0")/lib/messages.lib.bsh
 lock
 
 needrestart --version > /dev/null || apt install -y needrestart
 
-#ToDo: docker, add messenger library
+#ToDo: docker
 
 # update LXD
 if [[ "$(hostname -s)" = "main" ]]; then
 
   containers=$(sudo -u user76 /snap/bin/lxc ls -cns | grep RUNNING | awk '{print $2}')
   for i in $containers; do 
-    echo "--- updating "$i" ---"
+    inf "--- updating "$i" ---"
     sudo -u user76 /snap/bin/lxc exec $i -- timeout 10m apt-get update
   done
 fi
 
-echo upgrading $(hostname -s)
+inf "--- upgrading "$(hostname -s)" ---"
 
 timeout 60m apt-get update
 timeout 120m unattended-upgrades || true
@@ -31,7 +32,7 @@ needrestart -r a
 # upgrade LXD
 if [[ "$(hostname -s)" = "main" ]]; then
   for i in $containers; do
-    echo "--- upgrading "$i" ---"
+    inf "--- upgrading and rebooting "$i" ---"
     sudo -u user76 /snap/bin/lxc exec $i -- timeout 10m unattended-upgrades || true
     sudo -u user76 /snap/bin/lxc exec $i -- timeout 15m apt-get dist-upgrade -y
     sudo -u user76 /snap/bin/lxc exec $i -- timeout 10m apt-get upgrade -y
@@ -44,10 +45,10 @@ fi
 running=$(uname -r)
 latest=$(ls /boot/vmlinuz-* | sort -V | tail -n1 | xargs -n1 basename | sed 's/^vmlinuz-//')
 if [ "$running" != "$latest" ]; then
-    /scripts/pushover.bsh "New kernel $latest installed, running $running. Rebooting..."
+    wrn "New kernel $latest installed, running $running. Rebooting..."
     systemctl reboot
 fi
 if [ -f /var/run/reboot-required ]; then
-   /scripts/pushover.bsh "rebooting after package upgrades"
+   wrn "rebooting after package upgrades"
    systemctl reboot
 fi
