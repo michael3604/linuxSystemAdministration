@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#set -x
+
+title="archive print jobs to the main server."
+
+source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
+
+
+argDefineBool           "force"         "f" "ignores max or min age of print jobs. usefull for daily backups via crontab"
+argDefineValue          "min"           "i" "minimum age of a print job in minutes" default=1
+argDefineValue          "max"           "e" "creates a test error" default=10
+argDefineValue          "source"        "s" "local path of print jobs on" default="/var/spool/cups"
+argDefineValue          "target"        "t" "(remote) path of print jobs" default="printArchive@mainSSH:/mnt/main/printArchive"
+argDefineValue          "retention"     "r" "max age in days after which local jobs are deleted after successfull archiving" default=32
+
+argParse "$@" #parses the actual arguments according to the definitions above
+lock #creates a lock file, accepts parameter for different locks, i.e. lock stage1, would only lock stage1
+
+if [[ "$force" -eq 0 ]] ; then
+  if ! find "$source" -maxdepth 1 -mindepth 1 -type f -mmin -"$max" -mmin +"$min" -print -quit | grep -q .; then
+    vrb "no printjob older than ""$max"" minutes and younger than ""$min"" found. No action taken."
+    exit 0
+  fi
+fi
+
+inf copying printjobs
+rsync -av "$source" "$target"
+inf "deleting local print jobs older than ""$retention"" days."
+find "$source" -maxdepth 1 -mindepth 1 -type f -mmin -mmin -"$retention" -delete
+
+success #writes the successfile
