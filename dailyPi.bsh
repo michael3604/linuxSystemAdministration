@@ -16,8 +16,5 @@ inf "=== system maintenance ==="
 inf deleting old log files
 find /var/log/nmrCloud/ -type f -mtime +30 -delete
 /scripts/os-upgrader.bsh
-if [ "$(date +%u)" -eq 3 ]; then
-  /scripts/distro-checker.bsh
-fi
 success
 inf "$0 completed"
