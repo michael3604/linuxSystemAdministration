@@ -7,6 +7,8 @@ lock
 
 needrestart --version > /dev/null || apt install -y needrestart
 
+/scripts/gitManager.bsh -g
+
 #ToDo: docker
 
 # update LXD
