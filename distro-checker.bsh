@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#set -x
+
+title="Bash template file for sending probes around the solar system."
+
+source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+
+lock #creates a lock file, accepts parameter for different locks, i.e. lock stage1, would only lock stage1
+current=$(. /etc/os-release; echo "$VERSION_CODENAME")
+stable=$(debian-distro-info --stable)
+
+if [ "$current" = "$stable" ]; then
+    inf "major release seems up to date: current=$current, stable=$stable"
+else
+    wrn "Newer Debian stable exists: current=$current, stable=$stable"
+fi

@@ -81,6 +81,9 @@ inf scrubbing root
 btrfs scrub start -B / # scrub in foreground and display errors, ToDo: grep for problems
 inf "backing up main root"
 /scripts/os-upgrader.bsh
+if [ "$(date +%u)" -eq 3 ]; then
+  /scripts/distro-checker.bsh
+fi
 ###ToDo: start ext HDD scrubber here but in the background, and not on mondays or fridays
 #sleep 12h #uncomment this line to delay the off-site-backup if required.
 /scripts/backup-borg.bsh --backup || wrn "borg backup failed"
