@@ -8,11 +8,33 @@ source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
 source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
 
 lock #creates a lock file, accepts parameter for different locks, i.e. lock stage1, would only lock stage1
-current=$(. /etc/os-release; echo "$VERSION_CODENAME")
-stable=$(debian-distro-info --stable)
 
-if [ "$current" = "$stable" ]; then
-    inf "major release seems up to date: current=$current, stable=$stable"
+source /etc/os-release #read variables from folder
+
+current="${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}"
+
+if [ -z "$current" ]; then
+    err "Could not determine current release codename."
+fi
+
+if [[ "${ID:-}" == "debian" ]]; then
+    cmd="debian-distro-info"
+    latest="$($cmd --stable)"
+elif [[ "${ID:-}" == "ubuntu" ]] || [[ "${ID_LIKE:-}" == *"ubuntu"* ]]; then
+    cmd="ubuntu-distro-info"
+
+    # Use TRACK=lts ./script.sh if you only care about Ubuntu LTS releases.
+    if [[ "${TRACK:-stable}" == "lts" ]]; then
+        latest="$($cmd --lts)"
+    else
+        latest="$($cmd --stable)"
+    fi
 else
-    wrn "Newer Debian stable exists: current=$current, stable=$stable"
+    err "Unsupported distro: ${PRETTY_NAME:-unknown}"
+fi
+
+if [ "$current" != "$latest" ]; then
+    wrn "Newer major distro release available. Installed: $current. Latest: $latest"
+else
+    inf "No newer major distro release detected. Installed: $current"
 fi
