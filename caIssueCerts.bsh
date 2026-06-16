@@ -7,9 +7,9 @@ title="creates certificates for network devices. Assumes CA files are installed 
 source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
 source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
 
-argDefineValue   "devName"        "n" "name of network device (server or client). e.g. testserver" required
-argDefineValue   "common"         "c" "common name of network device (server or client). e.g. testserver.fritz.box" optional
-argDefineValue   "san"            "s" 'san-list (DNS names or ip adresses). e.g. "DNS:testserver,DNS:testserver.fritz.box"' optional
+argDefineValue   "devName"        "n" "name of network device. e.g. testserver" required
+argDefineValue   "common"         "c" "common name of network device. e.g. testserver.fritz.box" optional
+argDefineValue   "san"            "s" 'san-list (DNS names or ip adresses). e.g. "DNS:testserver,DNS:testserver.fritz.box,IP:123.456.0.1"' optional
 
 argParse "$@" #parses the actual arguments according to the definitions above
 
@@ -67,3 +67,4 @@ openssl verify \
 openssl x509 \
   -in "issued/${devName}.crt.pem" \
   -noout -subject -issuer -dates -ext subjectAltName -ext extendedKeyUsage
+inf "done."
