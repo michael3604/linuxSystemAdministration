@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#set -x
+
+title="creates certificates for network devices. Assumes CA files are installed to /root/keyfiles/ca."
+
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
+
+argDefineValue   "devName"        "n" "name of network device (server or client). e.g. testserver" required
+argDefineValue   "common"         "c" "common name of network device (server or client). e.g. testserver.fritz.box" optional
+argDefineValue   "san"            "s" 'san-list (DNS names or ip adresses). e.g. "DNS:testserver,DNS:testserver.fritz.box"' optional
+
+argParse "$@" #parses the actual arguments according to the definitions above
+
+vrb "name:        ""$devName"
+
+if [[ -z "$common" ]] ; then
+  common="$devName".fritz.box
+fi
+vrb "common name: ""$devName"
+
+if [[ -z "$san" ]] ; then
+  san=DNS:$devName,DNS:$devName.fritz.box,DNS:$devName.home.arpa,DNS:$devName.local
+fi
+vrb "san:         ""$san"
+
+CA_DIR="/root/keyfiles/ca"
+
+cd "$CA_DIR"
+
+openssl genrsa -out "private/${devName}.key.pem" 3072
+chmod 400 "private/${devName}.key.pem"
+
+openssl req -new \
+  -key "private/${devName}.key.pem" \
+  -subj "/C=DE/O=nmrCloud/CN=${common}" \
+  -out "csr/${devName}.csr.pem"
+
+cat > "csr/${devName}.ext.cnf" <<EOC
+[ server_cert ]
+basicConstraints       = critical, CA:FALSE
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid,issuer
+keyUsage               = critical, digitalSignature, keyEncipherment
+extendedKeyUsage       = serverAuth
+subjectAltName         = "${san}"
+EOC
+
+openssl ca \
+  -batch \
+  -config "$CA_DIR/openssl-ca.cnf" \
+  -extensions server_cert \
+  -extfile "csr/${devName}.ext.cnf" \
+  -days 397 \
+  -notext \
+  -md sha256 \
+  -in "csr/${devName}.csr.pem" \
+  -out "issued/${devName}.crt.pem"
+
+chmod 444 "issued/${devName}.crt.pem"
+
+openssl verify \
+  -CAfile "$CA_DIR/certs/nmrCloud-root-ca.crt.pem" \
+  "issued/${devName}.crt.pem"
+
+openssl x509 \
+  -in "issued/${devName}.crt.pem" \
+  -noout -subject -issuer -dates -ext subjectAltName -ext extendedKeyUsage
