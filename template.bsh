@@ -29,6 +29,5 @@ fi
 inf "starting from $bodyStart powered by $propellantType the $stages Stages separate neatly"\
     "and the spacecraft flies off to $bodyStop"
 
-success #writes the successfile
-success test #writes a sucessfile with the suffix test
-#ls -la  "$__SUCCESSFOLDER" #prints the successfolder (remove this for production scripts)
+#success #writes the successfile
+#success test #writes a sucessfile with the suffix test
