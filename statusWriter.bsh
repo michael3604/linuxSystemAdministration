@@ -1,0 +1,265 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#set -x
+
+title="create basic system information json and optionally sends it to ssh server. uses default config file."
+
+source /etc/3604/defaults.conf # provides basic parameters IN ALL CAPS
+source "$(dirname "$0")/lib/lock.lib.bsh" # for creating lock files
+source "$(dirname "$0")/lib/messages.lib.bsh" # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source "$(dirname "$0")/lib/argParser.lib.bsh" # parses defined arguments (see argDefineBool below). important: this must come after sourcing messages.lib.bsh
+
+argParse "$@" # parses the actual arguments according to the definitions above
+
+lock # creates a lock file
+
+send=0
+target=""
+
+mkdir -p "$STAT_FOLDER"
+vrb Hosttype identified as $HOST_TYPE
+
+if [ ! -e "$STAT_FOLDER/statusUpdateFrequency" ]; then
+    echo "$STAT_UPDATE_FREQUENCY_DEFAULT" > "$STAT_FOLDER/statusUpdateFrequency"
+fi
+
+statFolderFilesystem="$(findmnt -n -o FSTYPE --target "$STAT_FOLDER" 2>/dev/null || true)"
+
+case "$statFolderFilesystem" in
+    tmpfs|ramfs)
+        ;;
+    *)
+        err "$STAT_FOLDER is not on ramdisk. Filesystem is '$statFolderFilesystem'. Aborting to avoid damage to physical disk."
+        ;;
+esac
+
+read_update_frequency() {
+    local updateFrequency
+
+    updateFrequency="$(cat "$STAT_FOLDER/statusUpdateFrequency" 2>/dev/null || true)"
+
+    case "$updateFrequency" in
+        ''|*[!0-9]*)
+            wrn "invalid statusUpdateFrequency '$updateFrequency', resetting to default: $STAT_UPDATE_FREQUENCY_DEFAULT"
+            echo "$STAT_UPDATE_FREQUENCY_DEFAULT" > "$STAT_FOLDER/statusUpdateFrequency"
+            echo "$STAT_UPDATE_FREQUENCY_DEFAULT"
+            return
+            ;;
+        0)
+            wrn "statusUpdateFrequency must not be 0, resetting to default: $STAT_UPDATE_FREQUENCY_DEFAULT"
+            echo "$STAT_UPDATE_FREQUENCY_DEFAULT" > "$STAT_FOLDER/statusUpdateFrequency"
+            echo "$STAT_UPDATE_FREQUENCY_DEFAULT"
+            return
+            ;;
+    esac
+
+    echo "$updateFrequency"
+}
+
+detect_temperature_probe() {
+    local d
+    local input
+    local labelFile
+    local label
+
+    tempType="unknown"
+    tempInput=""
+
+    # Raspberry Pi: this worked well on your Pis.
+    for input in /sys/class/thermal/thermal_zone*/temp; do
+        [ -r "$input" ] || continue
+
+        tempType="RPi"
+        tempInput="$input"
+        return
+    done
+
+    # Main server: AMD k10temp via hwmon.
+    for d in /sys/class/hwmon/hwmon*; do
+        [ -r "$d/name" ] || continue
+        [ "$(cat "$d/name" 2>/dev/null || true)" = "k10temp" ] || continue
+
+        for input in "$d"/temp*_input; do
+            [ -r "$input" ] || continue
+
+            labelFile="${input%_input}_label"
+            label=""
+
+            [ -r "$labelFile" ] && label="$(cat "$labelFile" 2>/dev/null || true)"
+
+            case "$label" in
+                Tctl|Tdie|Package*|Core*)
+                    tempType="server"
+                    tempInput="$input"
+                    return
+                    ;;
+            esac
+        done
+
+        # Fallback: first temperature value from k10temp.
+        if [ -r "$d/temp1_input" ]; then
+            tempType="server"
+            tempInput="$d/temp1_input"
+            return
+        fi
+    done
+}
+
+read_cpu_temp() {
+    local raw
+
+    # Search every time a JSON update is written.
+    # This is more robust than assuming hwmon numbers stay constant.
+    detect_temperature_probe
+
+    if [ -z "$tempInput" ] || [ ! -r "$tempInput" ]; then
+        echo "null"
+        return
+    fi
+
+    raw="$(cat "$tempInput" 2>/dev/null || true)"
+
+    case "$raw" in
+        ''|*[!0-9]*)
+            echo "null"
+            return
+            ;;
+    esac
+
+    if [ "$raw" -le 0 ] || [ "$raw" -ge 150000 ]; then
+        echo "null"
+        return
+    fi
+
+    awk -v t="$raw" 'BEGIN { printf "%.1f", t / 1000 }'
+}
+
+read_cpu_times() {
+    local user
+    local nice
+    local system
+    local idle
+    local iowait
+    local irq
+    local softirq
+    local steal
+    local idleAll
+    local nonIdle
+    local total
+
+    read -r _ user nice system idle iowait irq softirq steal _ < /proc/stat
+
+    idleAll=$((idle + iowait))
+    nonIdle=$((user + nice + system + irq + softirq + steal))
+    total=$((idleAll + nonIdle))
+
+    echo "$total $idleAll"
+}
+
+calculate_cpu_percent() {
+    local totalPrev="$1"
+    local idlePrev="$2"
+    local totalNow="$3"
+    local idleNow="$4"
+    local totalDelta
+    local idleDelta
+
+    totalDelta=$((totalNow - totalPrev))
+    idleDelta=$((idleNow - idlePrev))
+
+    if [ "$totalDelta" -le 0 ] || [ "$idleDelta" -lt 0 ]; then
+        echo "null"
+        return
+    fi
+
+    awk -v dt="$totalDelta" -v di="$idleDelta" 'BEGIN { printf "%.1f", 100 * (dt - di) / dt }'
+}
+
+read_ram_percent() {
+    awk '
+        /MemTotal:/     { total = $2 }
+        /MemAvailable:/ { available = $2 }
+        END {
+            if (total <= 0) print "null"
+            else printf "%.1f", 100 * (total - available) / total
+        }
+    ' /proc/meminfo
+}
+
+write_system_stats_json() {
+    local cpuPercent="$1"
+    local timestamp
+    local host
+    local ramPercent
+    local cpuTempC
+    local maintenanceMode
+
+    timestamp="$(date -Iseconds)"
+    host="$(hostname -s | tr -cd 'A-Za-z0-9_.-')"
+
+    if [ -z "$host" ]; then
+        host="unknown"
+    fi
+
+    ramPercent="$(read_ram_percent)"
+    cpuTempC="$(read_cpu_temp)"
+
+    if [ -e "$STAT_FOLDER/maintenanceMode" ]; then
+        maintenanceMode="true"
+    else
+        maintenanceMode="false"
+    fi
+
+    vrb "new stats requested: CPU:"$cpuPercent" RAM:"$ramPercent" Temp:"$cpuTempC" Maintenance:"$maintenanceMode
+
+    cat > "$STAT_FOLDER/systemStats.json.tmp" <<EOF
+{
+  "hostname": "$host",
+  "timestamp": "$timestamp",
+  "cpu_percent": $cpuPercent,
+  "ram_percent": $ramPercent,
+  "cpu_temp_c": $cpuTempC,
+  "maintenance_mode": $maintenanceMode
+}
+EOF
+
+    mv "$STAT_FOLDER/systemStats.json.tmp" "$STAT_FOLDER/systemStats.json"
+}
+
+detect_temperature_probe
+inf "detected temperature probe type: $tempType"
+inf "detected temperature input: $tempInput"
+
+# Read CPU utilization for the first time.
+read -r cpuTotalPrev cpuIdlePrev < <(read_cpu_times)
+
+# Small delay avoids a zero-length CPU interval if an update is requested immediately.
+sleep 2
+
+tIdle=99999 #triggers execution on the first run
+
+while : ; do
+    updateFrequency="$(read_update_frequency)"
+
+    if [ "$tIdle" -ge "$updateFrequency" ] || [ -e "$STAT_FOLDER/maintenanceMode" ]; then
+        read -r cpuTotalNow cpuIdleNow < <(read_cpu_times)
+
+        cpuPercent="$(calculate_cpu_percent "$cpuTotalPrev" "$cpuIdlePrev" "$cpuTotalNow" "$cpuIdleNow")"
+
+        cpuTotalPrev="$cpuTotalNow"
+        cpuIdlePrev="$cpuIdleNow"
+
+        write_system_stats_json "$cpuPercent"
+
+        if [ "$send" -eq 1 ]; then
+            # SSH placeholder. This comes later.
+            vrb "send requested, target is $target, but SSH upload is still a placeholder"
+        fi
+
+        tIdle=0
+    else
+        vrb "no update requested, sleeping"
+        tIdle=$((tIdle + 1))
+    fi
+    sleep 1
+done

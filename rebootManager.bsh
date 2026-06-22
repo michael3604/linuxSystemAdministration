@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Directory for per-script reboot flags
+REBOOT_DIR="/run"
+
+# Gather all reboot request files
+request_files=("$REBOOT_DIR"/rebootRequested.*)
+inhibit_files=("$REBOOT_DIR"/rebootInhibited.*)
+
+# Check if there are any requests
+if compgen -G "$REBOOT_DIR/rebootRequested.*" > /dev/null; then
+    echo "Reboot requested by:"
+    for f in "${request_files[@]}"; do
+        [[ -f "$f" ]] && echo "  $(cat "$f")"
+    done
+
+    sleep 1 #to avoid a race condition
+
+    # Wait for inhibitors to disappear, max 600s
+    if compgen -G "$REBOOT_DIR/rebootInhibited.*" > /dev/null; then
+        echo "Reboot inhibited, waiting up to 600 seconds..."
+        waited=0
+        while compgen -G "$REBOOT_DIR/rebootInhibited.*" > /dev/null && [[ $waited -lt 600 ]]; do
+            sleep 1
+            ((waited++))
+        done
+
+        if compgen -G "$REBOOT_DIR/rebootInhibited.*" > /dev/null; then
+            echo "Rebooting anyway after 600 seconds, inhibition still present"
+        fi
+    fi
+
+    # Stage 1: gentle reboot
+    echo "Initiating gentle reboot..."
+    systemctl reboot &
+
+    sleep 120
+    echo "Gentle reboot did not happen, trying more forceful reboot..."
+    # Stage 2: forceful reboot
+    systemctl --force reboot &
+
+    sleep 120
+    echo "Forceful reboot did not succeed, attempting most forceful reboot..."
+    if [[ -w /proc/sysrq-trigger ]]; then
+        echo b > /proc/sysrq-trigger
+    else
+        /sbin/reboot -f || /sbin/shutdown -r now
+    fi
+else
+    echo "No reboot requested."
+fi

@@ -1,0 +1,420 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#set -x
+
+title="install, update, uninstall and health-check (selected) local daemon scripts and matching systemd service files"
+
+source /etc/3604/defaults.conf # provides basic parameters IN ALL CAPS
+source "$(dirname "$0")/lib/messages.lib.bsh" # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source "$(dirname "$0")/lib/argParser.lib.bsh" # parses defined arguments. important: this must come after sourcing messages.lib.bsh
+
+managerDir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+systemdDir="/etc/systemd/system"
+
+argDefineValue "service"    "s" "path to source service file. Installed unless parameters -u or -D are used, e.g. /scripts/statsWriter.bsh.service" default=""
+argDefineValue "scriptsDir" "d" "path to the script/service source files, if no service file is given to install" default="$managerDir"
+argDefineBool  "uninstall"  "u" "stop, disable and uninstall the selected service"
+argDefineBool  "disable"    "D" "stop and disable the selected service"
+
+argParse "$@"
+
+if [ "$(id -u)" -ne 0 ]; then
+    err "this script must be run as root"
+fi
+
+shopt -s nullglob
+
+inf "manager directory: $managerDir"
+inf "source scripts directory: $scriptsDir"
+inf "systemd directory: $systemdDir"
+
+normalize_service_path() {
+    local input="$1"
+    local candidate
+
+    if [ -z "$input" ]; then
+        echo ""
+        return
+    fi
+
+    case "$input" in
+        *.service)
+            candidate="$input"
+            ;;
+        *)
+            candidate="$input.service"
+            ;;
+    esac
+
+    case "$candidate" in
+        /*)
+            ;;
+        *)
+            candidate="$scriptsDir/$candidate"
+            ;;
+    esac
+
+    readlink -m "$candidate"
+}
+
+script_path_from_service_path() {
+    local servicePath="$1"
+
+    echo "${servicePath%.service}"
+}
+
+service_name_from_service_path() {
+    local servicePath="$1"
+
+    basename "$servicePath"
+}
+
+target_service_path_from_service_path() {
+    local servicePath="$1"
+    local serviceName
+
+    serviceName="$(service_name_from_service_path "$servicePath")"
+    echo "$systemdDir/$serviceName"
+}
+
+file_owned_by_root_and_not_group_or_world_writable() {
+    local file="$1"
+    local ownerUid
+    local modeOctal
+
+    if [ ! -f "$file" ]; then
+        wrn "not a regular file: $file"
+        return 1
+    fi
+
+    ownerUid="$(stat -c '%u' "$file")"
+    modeOctal="$(stat -c '%a' "$file")"
+
+    if [ "$ownerUid" -ne 0 ]; then
+        wrn "$file is not owned by root"
+        return 1
+    fi
+
+    if [ $((8#$modeOctal & 8#022)) -ne 0 ]; then
+        wrn "$file is writable by group and/or others; mode is $modeOctal"
+        return 1
+    fi
+
+    return 0
+}
+
+check_service_files() {
+    local servicePath="$1"
+    local scriptPath
+
+    scriptPath="$(script_path_from_service_path "$servicePath")"
+
+    if [ ! -f "$servicePath" ]; then
+        wrn "service file does not exist: $servicePath"
+        return 1
+    fi
+
+    if [ ! -f "$scriptPath" ]; then
+        wrn "matching script file does not exist: $scriptPath"
+        return 1
+    fi
+
+    if ! file_owned_by_root_and_not_group_or_world_writable "$servicePath"; then
+        wrn "service file failed safety check: $servicePath"
+        return 1
+    fi
+
+    if ! file_owned_by_root_and_not_group_or_world_writable "$scriptPath"; then
+        wrn "script file failed safety check: $scriptPath"
+        return 1
+    fi
+
+    if [ ! -r "$servicePath" ]; then
+        wrn "service file is not readable: $servicePath"
+        return 1
+    fi
+
+    if [ ! -r "$scriptPath" ]; then
+        wrn "script file is not readable: $scriptPath"
+        return 1
+    fi
+
+    if [ ! -x "$scriptPath" ]; then
+        wrn "script file is not executable: $scriptPath"
+        return 1
+    fi
+
+    return 0
+}
+
+target_unit_is_safe_to_replace() {
+    local targetServicePath="$1"
+
+    if [ ! -e "$targetServicePath" ]; then
+        return 0
+    fi
+
+    if [ -L "$targetServicePath" ]; then
+        return 0
+    fi
+
+    if ! file_owned_by_root_and_not_group_or_world_writable "$targetServicePath"; then
+        wrn "existing systemd unit is not safe to replace: $targetServicePath"
+        return 1
+    fi
+
+    return 0
+}
+
+install_service_link() {
+    local servicePath="$1"
+    local serviceName
+    local targetServicePath
+    local currentTarget
+
+    serviceName="$(service_name_from_service_path "$servicePath")"
+    targetServicePath="$(target_service_path_from_service_path "$servicePath")"
+
+    if ! check_service_files "$servicePath"; then
+        wrn "$serviceName files look bad. skipping"
+        return 1
+    fi
+
+    if ! target_unit_is_safe_to_replace "$targetServicePath"; then
+        wrn "$serviceName target unit is not safe to replace. skipping"
+        return 1
+    fi
+
+    if [ -L "$targetServicePath" ]; then
+        currentTarget="$(readlink -f "$targetServicePath" 2>/dev/null || true)"
+
+        if [ "$currentTarget" = "$(readlink -f "$servicePath")" ]; then
+            vrb "$serviceName systemd symlink already points to $servicePath"
+            return 0
+        fi
+    fi
+
+
+    if [ "$managerDir" != "/scripts" ]; then
+        wrn "script is not executed from /scripts. Remember the .service files point at /scripts!"
+    fi
+
+    inf "installing/updating systemd symlink for $serviceName"
+    ln -sfnT "$servicePath" "$targetServicePath"
+
+    return 0
+}
+
+stop_disable_service() {
+    local serviceName="$1"
+
+    systemctl stop "$serviceName" 2>/dev/null || true
+    systemctl disable "$serviceName" 2>/dev/null || true
+    systemctl reset-failed "$serviceName" 2>/dev/null || true
+}
+
+disable_service() {
+    local servicePath="$1"
+    local serviceName
+
+    serviceName="$(service_name_from_service_path "$servicePath")"
+
+    inf "disabling $serviceName"
+    stop_disable_service "$serviceName"
+}
+
+uninstall_service() {
+    local servicePath="$1"
+    local serviceName
+    local targetServicePath
+
+    serviceName="$(service_name_from_service_path "$servicePath")"
+    targetServicePath="$(target_service_path_from_service_path "$servicePath")"
+
+    inf "uninstalling $serviceName"
+
+    stop_disable_service "$serviceName"
+
+    if [ -L "$targetServicePath" ]; then
+        rm -f "$targetServicePath"
+    elif [ -e "$targetServicePath" ]; then
+        wrn "not removing non-symlink systemd unit: $targetServicePath"
+    fi
+}
+
+service_should_be_restarted() {
+    local serviceName="$1"
+    local enabledState
+    local activeState
+
+    enabledState="$(systemctl is-enabled "$serviceName" 2>/dev/null || true)"
+    activeState="$(systemctl is-active "$serviceName" 2>/dev/null || true)"
+
+    case "$enabledState:$activeState" in
+        enabled:*|*:active|*:activating)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+restart_service_if_relevant() {
+    local serviceName="$1"
+
+    if service_should_be_restarted "$serviceName"; then
+        inf "restarting $serviceName"
+
+        if ! systemctl restart "$serviceName"; then
+            wrn "restart reported a problem for $serviceName"
+        fi
+    else
+        vrb "$serviceName is not enabled/running; not restarting"
+    fi
+}
+
+check_service_health() {
+    local servicePath="$1"
+    local serviceName
+    local enabledState
+    local activeState
+
+    serviceName="$(service_name_from_service_path "$servicePath")"
+
+    enabledState="$(systemctl is-enabled "$serviceName" 2>/dev/null || true)"
+
+    case "$enabledState" in
+        disabled)
+            inf "$serviceName is disabled"
+            return
+            ;;
+        static|indirect)
+            vrb "$serviceName is $enabledState"
+            ;;
+        enabled)
+            ;;
+        *)
+            vrb "$serviceName enabled state is '$enabledState'"
+            ;;
+    esac
+
+    if systemctl is-failed --quiet "$serviceName"; then
+        wrn "$serviceName looks unhealthy: failed"
+        return
+    fi
+
+    activeState="$(systemctl is-active "$serviceName" 2>/dev/null || true)"
+
+    case "$activeState" in
+        active)
+            vrb "$serviceName looks healthy"
+            ;;
+        activating)
+            wrn "$serviceName is still activating"
+            ;;
+        inactive)
+            case "$enabledState" in
+                enabled)
+                    wrn "$serviceName looks unhealthy: enabled but inactive"
+                    ;;
+                *)
+                    vrb "$serviceName is inactive and not enabled"
+                    ;;
+            esac
+            ;;
+        *)
+            wrn "$serviceName looks unhealthy: active state is '$activeState', enabled state is '$enabledState'"
+            ;;
+    esac
+}
+
+if [ "$uninstall" -eq 1 ] && [ "$disable" -eq 1 ]; then
+    err "parameters uninstall and disable cannot both be used."
+fi
+
+services=()
+
+if [ -n "$service" ]; then
+    servicePath="$(normalize_service_path "$service")"
+    services+=( "$servicePath" )
+else
+    vrb "no service file given. checking all services in $scriptsDir"
+
+    for servicePath in "$scriptsDir"/*.service; do
+        services+=( "$(readlink -m "$servicePath")" )
+    done
+fi
+
+if [ "${#services[@]}" -eq 0 ]; then
+    wrn "no service files found"
+fi
+
+if [ "$uninstall" -eq 1 ]; then
+    if [ -z "$service" ]; then
+        err "uninstall requires --service SERVICE_FILE"
+    fi
+
+    for servicePath in "${services[@]}"; do
+        uninstall_service "$servicePath"
+    done
+
+    inf "reloading systemd unit files"
+    systemctl daemon-reload
+
+    inf "checking service health"
+
+    for servicePath in "$scriptsDir"/*.service; do
+        check_service_health "$servicePath"
+    done
+
+    inf "daemon manager finished"
+    exit 0
+fi
+
+if [ "$disable" -eq 1 ]; then
+    if [ -z "$service" ]; then
+        err "disable requires --service SERVICE_FILE"
+    fi
+
+    for servicePath in "${services[@]}"; do
+        disable_service "$servicePath"
+    done
+
+    inf "reloading systemd unit files"
+    systemctl daemon-reload
+
+    inf "checking service health"
+
+    for servicePath in "$scriptsDir"/*.service; do
+        check_service_health "$servicePath"
+    done
+
+    inf "daemon manager finished"
+    exit 0
+fi
+
+managedServices=()
+
+for servicePath in "${services[@]}"; do
+    serviceName="$(service_name_from_service_path "$servicePath")"
+
+    if install_service_link "$servicePath"; then
+        managedServices+=( "$serviceName" )
+    fi
+done
+
+inf "reloading systemd unit files"
+systemctl daemon-reload
+
+for serviceName in "${managedServices[@]}"; do
+    restart_service_if_relevant "$serviceName"
+done
+
+inf "checking service health"
+
+for servicePath in "$scriptsDir"/*.service; do
+    check_service_health "$servicePath"
+done
+
+inf "daemon manager finished"
