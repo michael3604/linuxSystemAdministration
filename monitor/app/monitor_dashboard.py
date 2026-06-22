@@ -186,7 +186,19 @@ def parse_timestamp(value):
 
     try:
         text = str(value).strip().splitlines()[0].strip()
-        text = text.replace("Z", "+00:00")
+
+        # Accept common UTC notations:
+        # 2026-06-22T13:35:34Z
+        # 2026-06-22T13:35:34+00:00
+        # 2026-06-22T13:35:34 UTC
+        # 2026-06-22T13:35:34UTC
+        if text.endswith(" UTC"):
+            text = text[:-4] + "+00:00"
+        elif text.endswith("UTC"):
+            text = text[:-3] + "+00:00"
+        elif text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+
         dt = datetime.fromisoformat(text)
 
         if dt.tzinfo is None:
@@ -195,7 +207,6 @@ def parse_timestamp(value):
         return int(dt.timestamp())
     except Exception:
         return None
-
 
 def safe_float(value):
     try:

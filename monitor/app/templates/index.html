@@ -685,7 +685,7 @@ async function loadHeartbeatFiles() {
       <td class="${cls}">${item.ok ? "ok" : "bad"}</td>
       <td>${fmtAge(item.age_seconds)}</td>
       <td>${fmtAge(item.max_age_seconds)}</td>
-      <td>${fmtTimestamp(item.timestamp_ts)}</td>
+      <td>${fmtTimestamp(item.content)}</td>
       <td>${esc(item.relpath)}</td>
       <td>${esc(item.error)}</td>
     `;
@@ -755,7 +755,7 @@ async function loadSuccessFiles() {
       <td class="${cls}">${item.ok ? "ok" : "bad"}</td>
       <td>${fmtAge(item.age_seconds)}</td>
       <td>${fmtAge(item.max_age_seconds)}</td>
-      <td>${fmtTimestamp(item.timestamp_ts)}</td>
+      <td>${fmtTimestamp(item.content)}</td>
       <td>${esc(item.relpath)}</td>
       <td>${esc(item.error)}</td>
     `;
