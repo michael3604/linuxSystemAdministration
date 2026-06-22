@@ -1,0 +1,15 @@
+# Python virtual environments
+venv/
+__pycache__/
+*.pyc
+
+# Runtime state should live under /var/lib/monitor-dashboard
+state/
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Editing backups
+*.bak
+*.working.*
+*.tmp

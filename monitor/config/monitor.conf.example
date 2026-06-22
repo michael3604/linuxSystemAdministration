@@ -1,0 +1,116 @@
+{
+  "paths": {
+    "monitor_root": "/mnt/monitor",
+    "success_root": "/mnt/successfiles",
+    "state_dir": "/var/lib/monitor-dashboard/state",
+    "update_frequency_file": "/run/monitorUpdateFrequency"
+  },
+
+  "server": {
+    "listen_host": "0.0.0.0",
+    "listen_port": 8010
+  },
+
+  "ingest": {
+    "interval_seconds": 2,
+    "retention_days": 30
+  },
+
+  "ui": {
+    "default_update_frequency_seconds": 10,
+    "allowed_update_frequencies_seconds": [2, 10, 60],
+
+    "default_graph_range": "24h",
+    "graph_ranges": {
+      "10m": {
+        "label": "10 min",
+        "hours": 0.1666667,
+        "max_points_per_metric": 600
+      },
+      "3h": {
+        "label": "3 h",
+        "hours": 3,
+        "max_points_per_metric": 720
+      },
+      "24h": {
+        "label": "24 h",
+        "hours": 24,
+        "max_points_per_metric": 1440
+      },
+      "7d": {
+        "label": "7 d",
+        "hours": 168,
+        "max_points_per_metric": 1008
+      }
+    }
+  },
+
+  "hosts": {
+    "expected": [],
+    "ignored": []
+  },
+
+  "inputs": {
+    "system_stats": {
+      "root": "/mnt/monitor",
+      "filename": "systemStats.json"
+    },
+    "status_files": {
+      "root": "/mnt/monitor",
+      "globs": ["*.status"]
+    },
+    "heartbeat_files": {
+      "root": "/mnt/monitor",
+      "globs": ["*.heartbeat", "*.heartBeat"]
+    },
+    "success_files": {
+      "root": "/mnt/successfiles",
+      "globs": ["*.success"]
+    }
+  },
+
+  "status_rules": {
+    "_default": {
+      "_default": {
+        "good": ["ok", "green", "healthy", "true", "1", "mounted", "up"],
+        "bad": ["bad", "red", "error", "fail", "failed", "false", "0", "missing", "down"],
+        "unknown_is_ok": false
+      }
+    },
+
+    "example-host": {
+      "exampleFunction": {
+        "good": ["ok"],
+        "bad": ["error"]
+      }
+    }
+  },
+
+  "heartbeat_rules": {
+    "_default": {
+      "_default": {
+        "max_age_seconds": 180
+      }
+    },
+
+    "example-host": {
+      "exampleHeartbeat": {
+        "max_age_seconds": 600
+      }
+    }
+  },
+
+  "success_file_rules": {
+    "_default": {
+      "_default": {
+        "max_age_seconds": 90000
+      }
+    },
+
+    "example-host": {
+      "example-backup": {
+        "max_age_seconds": 172800
+      }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+[Unit]
+Description=Lightweight Flask Monitor Dashboard
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+
+User=monitor-dashboard
+Group=monitor-dashboard
+
+WorkingDirectory=/scripts/monitor/app
+
+ExecStart=/scripts/monitor/venv/bin/waitress-serve \
+  --host=0.0.0.0 \
+  --port=8010 \
+  monitor_dashboard:app
+
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+ReadOnlyPaths=/mnt/monitor /mnt/successfiles /scripts/monitor/app /scripts/monitor/config /scripts/monitor/venv /var/lib/monitor-dashboard/config/monitor.conf
+ReadWritePaths=/var/lib/monitor-dashboard/state /run/monitorUpdateFrequency
+
+[Install]
+WantedBy=multi-user.target
