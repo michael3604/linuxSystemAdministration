@@ -30,5 +30,5 @@ success() {
         file="${__SUCCESSFOLDER}/${scriptname}.success"
     fi
 
-    echo $(date -u +"%Y-%m-%dT%H:%M:%S%Z") >  "$file"
+    echo $(date -u '+%Y-%m-%dT%H:%M:%SZ') >  "$file"
 }

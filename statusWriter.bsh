@@ -13,11 +13,18 @@ argParse "$@" # parses the actual arguments according to the definitions above
 
 lock # creates a lock file
 
-send=0
+vrb Hosttype identified as $HOST_TYPE
+if [[ $HOST_TYPE=lan ]] | [[ $HOST_TYPE=remote ]]; then
+     send=1
+     vrb status file will be sent over ssh.
+else
+     send=0
+     vrb status file will not be sent over ssh.
+fi
+
 target=""
 
 mkdir -p "$STAT_FOLDER"
-vrb Hosttype identified as $HOST_TYPE
 
 if [ ! -e "$STAT_FOLDER/statusUpdateFrequency" ]; then
     echo "$STAT_UPDATE_FREQUENCY_DEFAULT" > "$STAT_FOLDER/statusUpdateFrequency"
@@ -224,6 +231,10 @@ write_system_stats_json() {
 EOF
 
     mv "$STAT_FOLDER/systemStats.json.tmp" "$STAT_FOLDER/systemStats.json"
+    if [[ $send=1 ]] ; then
+        vrb sending file over ssh
+        scp "$STAT_FOLDER/systemStats.json" mainSsh-$HOSTNAME:/mnt/monitor/$HOSTNAME/systemStats.json >/dev/null #write file to server, suppress output
+    fi
 }
 
 detect_temperature_probe
@@ -250,11 +261,6 @@ while : ; do
         cpuIdlePrev="$cpuIdleNow"
 
         write_system_stats_json "$cpuPercent"
-
-        if [ "$send" -eq 1 ]; then
-            # SSH placeholder. This comes later.
-            vrb "send requested, target is $target, but SSH upload is still a placeholder"
-        fi
 
         tIdle=0
     else
