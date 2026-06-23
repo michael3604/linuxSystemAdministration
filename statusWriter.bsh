@@ -11,16 +11,9 @@ source "$(dirname "$0")/lib/argParser.lib.bsh" # parses defined arguments (see a
 
 argParse "$@" # parses the actual arguments according to the definitions above
 
-lock # creates a lock file
+#lock # creates a lock file
 
 vrb Hosttype identified as $HOST_TYPE
-if [ "$HOST_TYPE" = "lan" ] | [ "$HOST_TYPE" = "remote" ]; then
-     send=1
-     vrb status file will be sent over ssh.
-else
-     send=0
-     vrb status file will not be sent over ssh.
-fi
 
 target=""
 
@@ -231,10 +224,21 @@ write_system_stats_json() {
 EOF
 
     mv "$STAT_FOLDER/systemStats.json.tmp" "$STAT_FOLDER/systemStats.json"
-    if [[ $send = 1 ]] ; then
-        vrb sending file over ssh
-        scp "$STAT_FOLDER/systemStats.json" mainSsh-$HOSTNAME:/mnt/monitor/$HOSTNAME/systemStats.json >/dev/null #write file to server, suppress output
-    fi
+
+    case $HOST_TYPE in
+        main)
+            vrb copying stat file to monitor subfolder
+            mkdir -p "$STAT_FOLDER/monitor/$HOSTNAME"
+            cp "$STAT_FOLDER/systemStats.json" "$STAT_FOLDER/monitor/$HOSTNAME/systemStats.json"
+            ;;
+       lan | remote)
+           if scp "$STAT_FOLDER/systemStats.json" mainSsh-$HOSTNAME:/mnt/monitor/$HOSTNAME/systemStats.json >/dev/null ; then 
+               vrb "file sent to server."
+           else
+               inf "sending to server failed!"
+           fi
+            ;;
+     esac
 }
 
 detect_temperature_probe
