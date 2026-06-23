@@ -201,6 +201,9 @@ install_service_link() {
 
     inf "installing/updating systemd symlink for $serviceName"
     ln -sfnT "$servicePath" "$targetServicePath"
+    systemctl enable --now "$serviceName"
+    systemctl status "$serviceName"
+    journalctl -u statusWriter.bsh.service -n 100 --no-pager
 
     return 0
 }
