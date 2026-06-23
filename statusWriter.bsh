@@ -14,7 +14,7 @@ argParse "$@" # parses the actual arguments according to the definitions above
 lock # creates a lock file
 
 vrb Hosttype identified as $HOST_TYPE
-if [[ $HOST_TYPE=lan ]] | [[ $HOST_TYPE=remote ]]; then
+if [ "$HOST_TYPE" = "lan" ] | [ "$HOST_TYPE" = "remote" ]; then
      send=1
      vrb status file will be sent over ssh.
 else
@@ -231,7 +231,7 @@ write_system_stats_json() {
 EOF
 
     mv "$STAT_FOLDER/systemStats.json.tmp" "$STAT_FOLDER/systemStats.json"
-    if [[ $send=1 ]] ; then
+    if [[ $send = 1 ]] ; then
         vrb sending file over ssh
         scp "$STAT_FOLDER/systemStats.json" mainSsh-$HOSTNAME:/mnt/monitor/$HOSTNAME/systemStats.json >/dev/null #write file to server, suppress output
     fi
