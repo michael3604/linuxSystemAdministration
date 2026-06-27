@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LANtern</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <div>
+        <h1>LANtern</h1>
+        <p>Lightweight LAN status dashboard</p>
+      </div>
+      <div id="clock" class="clock"></div>
+    </header>
+
+    <section class="card controls-card">
+      <div class="control-row">
+        <span class="label">Update frequency</span>
+        <div id="updateButtons" class="button-row"></div>
+        <span id="currentFrequency" class="muted"></span>
+      </div>
+      <div class="control-row">
+        <span class="label">Graph range</span>
+        <div id="rangeButtons" class="button-row"></div>
+        <span id="lastRefresh" class="muted"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title-row">
+        <h2>Service state</h2>
+        <div class="button-row small">
+          <button id="showAll">Show all</button>
+          <button id="hideAll">Hide all</button>
+          <button id="showProblems">Show problems only</button>
+          <button id="resetSelection">Reset selection</button>
+        </div>
+      </div>
+      <div id="serviceTable"></div>
+    </section>
+
+    <section class="card">
+      <h2>Service history</h2>
+      <p class="muted">Numeric datapoints use per-lane scaling. Non-numeric services use 0 = good, 1 = stale/unknown, 2 = bad.</p>
+      <canvas id="serviceGraph" height="420"></canvas>
+    </section>
+
+    <section class="card">
+      <h2>Host state</h2>
+      <div id="hostTable"></div>
+    </section>
+
+    <section class="card">
+      <h2>Host metrics</h2>
+      <div id="hostGraphs"></div>
+    </section>
+  </main>
+  <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>

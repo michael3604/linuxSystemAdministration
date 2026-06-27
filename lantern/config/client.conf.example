@@ -1,0 +1,24 @@
+{
+  "version": 5,
+  "hostName": "paper",
+  "paths": {
+    "runtimeFolder": "/run/lantern",
+    "localDataFolder": "/run/lantern/local",
+    "outboxFolder": "/run/lantern/outbox",
+    "updateFrequencyFile": "/run/lantern/config/updateFrequency"
+  },
+  "collection": {
+    "defaultIntervalSeconds": 120,
+    "minimumIntervalSeconds": 2,
+    "maximumIntervalSeconds": 1800,
+    "maintenanceModeFile": "/run/lantern/maintenanceMode"
+  },
+  "transport": {
+    "mode": "rsyncSsh",
+    "sshShortcut": "mainSsh-paper",
+    "remoteSnapshotFolder": "/run/lantern/snapshots",
+    "keepPerHost": 10,
+    "useLinkDest": true,
+    "sshTimeoutSeconds": 10
+  }
+}

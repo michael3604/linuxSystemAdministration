@@ -1,0 +1,68 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b1020;
+  --card: #111827;
+  --card2: #0f172a;
+  --line: #263244;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --good: #22c55e;
+  --stale: #f59e0b;
+  --bad: #ef4444;
+  --accent: #60a5fa;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--text); }
+.page { max-width: 1360px; margin: 0 auto; padding: 24px; }
+.header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 18px; }
+h1 { margin: 0; font-size: 34px; letter-spacing: .02em; }
+h2 { margin: 0 0 12px; font-size: 20px; }
+p { margin: 4px 0 0; }
+.card { background: linear-gradient(180deg, var(--card), var(--card2)); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 18px; box-shadow: 0 12px 30px rgba(0,0,0,.25); }
+.controls-card { display: grid; gap: 12px; }
+.control-row, .card-title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
+.control-row { justify-content: flex-start; }
+.label { width: 145px; font-weight: 700; }
+.button-row { display: flex; gap: 8px; flex-wrap: wrap; }
+button { background: #182235; color: var(--text); border: 1px solid #334155; padding: 7px 10px; border-radius: 999px; cursor: pointer; }
+button.active { background: var(--accent); color: #06101f; border-color: var(--accent); font-weight: 700; }
+button:hover { border-color: var(--accent); }
+.small button { font-size: 12px; padding: 5px 8px; }
+.muted { color: var(--muted); font-size: 13px; }
+.clock { color: var(--muted); font-variant-numeric: tabular-nums; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }
+.table-scroll { width: 100%; overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; border-radius: 12px; }
+.table-scroll table { min-width: 960px; }
+.service-table { --show-col-width: 58px; --name-col-width: 220px; }
+.host-table { --host-col-width: 120px; }
+th, td { text-align: left; padding: 8px 9px; border-bottom: 1px solid rgba(148,163,184,.16); vertical-align: middle; background: transparent; }
+th { color: #cbd5e1; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+tbody tr:hover td { background: rgba(96,165,250,.06); }
+.sticky-col { position: sticky; z-index: 2; background: #111827; }
+th.sticky-col { z-index: 3; background: #111827; }
+.sticky-show { left: 0; width: var(--show-col-width); min-width: var(--show-col-width); max-width: var(--show-col-width); text-align: center; }
+.sticky-name { left: var(--show-col-width); width: var(--name-col-width); min-width: var(--name-col-width); max-width: var(--name-col-width); box-shadow: 8px 0 12px -12px rgba(0,0,0,.9); }
+.sticky-host { left: 0; width: var(--host-col-width); min-width: var(--host-col-width); max-width: var(--host-col-width); box-shadow: 8px 0 12px -12px rgba(0,0,0,.9); }
+.name-cell { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.text-cell { max-width: 520px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge { display: inline-flex; min-width: 64px; justify-content: center; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.badge.good { background: rgba(34,197,94,.16); color: #86efac; }
+.badge.stale, .badge.unknown { background: rgba(245,158,11,.16); color: #fcd34d; }
+.badge.bad, .badge.invalid, .badge.missing { background: rgba(239,68,68,.16); color: #fca5a5; }
+.value { font-variant-numeric: tabular-nums; }
+canvas { width: 100%; background: rgba(15,23,42,.45); border: 1px solid rgba(148,163,184,.15); border-radius: 12px; }
+.host-graph-card { margin-top: 12px; }
+.host-graph-title { margin-bottom: 6px; color: #cbd5e1; font-weight: 700; }
+input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+@media (max-width: 800px) {
+  .page { padding: 12px; }
+  .header { align-items: flex-start; gap: 8px; flex-direction: column; }
+  h1 { font-size: 28px; }
+  .label { width: auto; }
+  table { font-size: 12px; }
+  .table-scroll table { min-width: 860px; }
+  .service-table { --show-col-width: 50px; --name-col-width: 165px; }
+  .host-table { --host-col-width: 105px; }
+  th, td { padding: 7px 7px; }
+  .badge { min-width: 54px; padding: 3px 6px; font-size: 11px; }
+}

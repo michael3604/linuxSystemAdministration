@@ -1,0 +1,19 @@
+[Unit]
+Description=LANtern client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/scripts/lantern
+Environment=LANTERN_CLIENT_CONFIG=/etc/lantern/client.conf
+ExecStart=/usr/bin/python3 /scripts/lantern/client/lantern_client.py daemon
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

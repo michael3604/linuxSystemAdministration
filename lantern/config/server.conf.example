@@ -1,0 +1,80 @@
+{
+  "version": 5,
+  "paths": {
+    "snapshotFolder": "/run/lantern/snapshots",
+    "successFilesFolder": "/var/lib/success",
+    "stateFolder": "/var/lib/lantern/state",
+    "databasePath": "/var/lib/lantern/state/lantern.sqlite3",
+    "updateFrequencyFile": "/run/lantern/config/updateFrequency"
+  },
+  "server": {
+    "listenHost": "0.0.0.0",
+    "listenPort": 8010
+  },
+  "ingest": {
+    "intervalSeconds": 2,
+    "retentionDays": 30
+  },
+  "snapshots": {
+    "keepPerHost": 10,
+    "deleteInWorkOlderThanSeconds": 300
+  },
+  "ui": {
+    "defaultUpdateFrequencySeconds": 120,
+    "allowedUpdateFrequencySeconds": [2, 10, 60, 120],
+    "defaultGraphRangeSeconds": 86400,
+    "graphRanges": [
+      {"label": "10 min", "seconds": 600},
+      {"label": "3 h", "seconds": 10800},
+      {"label": "24 h", "seconds": 86400},
+      {"label": "7 d", "seconds": 604800}
+    ]
+  },
+  "hosts": {
+    "expected": ["main", "paper", "bak01", "rec01"],
+    "ignored": [],
+    "defaults": {
+      "hostStatusMaxAgeSeconds": 180
+    },
+    "perHost": {}
+  },
+  "statusValues": {
+    "good": ["good", "ok", "available", "healthy", "up", "mounted", "true", "1"],
+    "bad": ["bad", "error", "failed", "unavailable", "down", "missing", "false", "0"],
+    "unknown": ["unknown", "skipped", "maintenance", "n/a"]
+  },
+  "services": {
+    "defaults": {
+      "maxAgeSeconds": 90000,
+      "defaultVisibleInGraph": false
+    },
+    "perService": {
+      "main": {
+        "freeSpaceChecker": {
+          "maxAgeSeconds": 36000,
+          "graphMin": 0,
+          "graphMax": 100,
+          "unit": "%"
+        }
+      }
+    }
+  },
+  "successFiles": {
+    "defaults": {
+      "maxAgeSeconds": 90000,
+      "defaultVisibleInGraph": true
+    },
+    "perService": {}
+  },
+  "updateFrequencyManager": {
+    "enabled": false,
+    "checkIntervalSeconds": 5,
+    "resetAfterSeconds": 1800,
+    "resetToSeconds": 120,
+    "clients": {
+      "paper": {
+        "sshShortcut": "mainSsh-paper"
+      }
+    }
+  }
+}

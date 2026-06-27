@@ -228,8 +228,13 @@ EOF
     case $HOST_TYPE in
         main)
             vrb copying stat file to monitor subfolder
-            mkdir -p "$STAT_FOLDER/monitor/$HOSTNAME"
-            cp "$STAT_FOLDER/systemStats.json" "$STAT_FOLDER/monitor/$HOSTNAME/systemStats.json"
+            mkdir -p "/mnt/status/$HOSTNAME"
+            if [ -f "$STAT_FOLDER/systemStats.json" ] ; then
+                cp "$STAT_FOLDER/systemStats.json" "/mnt/status/$HOSTNAME/"
+            fi
+            if [ -f "$STAT_FOLDER/"*.status ] ; then
+                cp "$STAT_FOLDER/"*.status "/mnt/status/$HOSTNAME/"
+            fi
             ;;
        lan | remote)
            if scp "$STAT_FOLDER/systemStats.json" mainSsh-$HOSTNAME:/mnt/monitor/$HOSTNAME/systemStats.json >/dev/null ; then 

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+exec /opt/lantern/venv/bin/python /opt/lantern/check_inputs.py "$@"
