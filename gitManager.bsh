@@ -155,7 +155,7 @@ if [[ $pull -eq 1 ]]; then
   chmod -R a-w "$download" #additional protection for production scripts
   cp -a "$download"* "$dest".inwork
   mv "$dest".inwork "$dest" #atomic operation
-  chattr +i "$dest"
+  chattr +i "$dest" #additional protection
   ln -s "$dest" "$base"/current.new #for lxc containers
   mv -Tf "$base"/current.new "$base"/current #atomic operation
 
