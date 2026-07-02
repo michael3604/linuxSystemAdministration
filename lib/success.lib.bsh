@@ -5,7 +5,7 @@
 [[ -n "${__SUCCESS_LIB_LOADED:-}" ]] && return 0
 __SUCCESS_LIB_LOADED=1
 
-__SUCCESSFOLDER="/var/lib/nmrSuccess"
+__SUCCESSFOLDER="/var/lib/success/$(hostname)"
 
 # Ensure directory exists
 mkdir -p "$__SUCCESSFOLDER"

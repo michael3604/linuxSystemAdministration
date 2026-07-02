@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+set -x
+
+title="checks if printer server can be reached"
+helpText="requires avahi to be installed"
+
+source /etc/3604/defaults.conf
+source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
+
+argParse "$@" #parses the actual arguments according to the definitions above
+
+ok=1
+
+vrb "=== printer-discovery check ==="
+
+vrb "--- CUPS web endpoint ---"
+if curl -fsS --max-time 5 "http://$PRINTER_SERVER_HOSTNAME:631/" >/dev/null; then
+    vrb "OK: CUPS reachable"
+else
+    wrn "CUPS not reachable"
+    ok=0
+fi
+
+vrb "--- CUPS printer queue endpoint ---"
+if curl -fsS --max-time 5 "http://$PRINTER_SERVER_HOSTNAME:631/printers/$PRINTER_SERVER_QUEUE" >/dev/null; then
+    vrb "OK: printer queue URL reachable"
+else
+    wrn "printer queue URL not reachable"
+    ok=0
+fi
+
+vrb "--- DNS-SD IPP advertisement ---"
+if timeout 8 avahi-browse -rt _ipp._tcp 2>/dev/null | grep -q "$PRINTER_SERVER_QUEUE"; then
+    vrb "OK: IPP printer service advertised"
+else
+    wrn "IPP printer service not advertised"
+    ok=0
+fi
+
+vrb "--- AirPrint/Mopria-style advertisement ---"
+if timeout 8 avahi-browse -rt _universal._sub._ipp._tcp 2>/dev/null | grep -qi "$PRINTER_NAME"; then
+    vrb "OK: universal IPP subtype advertised"
+else
+    wrn "universal IPP subtype not seen"
+    ok=0
+fi
+
+if [ "$ok" -eq 1 ]; then
+    echo "OK: All tests passed. Printer server should be discoverable and reachable from LAN"
+    exit 0
+else
+    echo "BAD: printer discovery/reachability problem detected"
+    exit 1
+fi
