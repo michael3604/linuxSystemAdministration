@@ -149,7 +149,7 @@ if [[ $pull -eq 1 ]]; then
   # create production folder
   commit_date=$(git show -s --format=%cI HEAD) # extract commit date
   dest="$base/$commit_date"
-  chattr -R -i "$base"
+  chattroo -i "$base"
   rm -rf "$dest".inwork #cleanup
   rm -rf "$dest" #cleanup
   mkdir -p "$dest".inwork #suffix helps detecting partial downloads, etc.
@@ -161,8 +161,8 @@ if [[ $pull -eq 1 ]]; then
   chattr -R +i "$base"
 
   # deploy
-  ln -sfn "$dest" "/scripts" #atomic operation, should keep currently running scripts in old folder undisturbed
-  inf "repo downloaded to $dest and deployed to /scripts"
+  ln -sfn "$base"/current "/scripts" #atomic operation, should keep currently running scripts in old folder undisturbed
+  inf "repo downloaded to $dest and deployed to /scripts and $base/current"
 
 fi
 
