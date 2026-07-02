@@ -149,7 +149,7 @@ if [[ $pull -eq 1 ]]; then
   # create production folder
   commit_date=$(git show -s --format=%cI HEAD) # extract commit date
   dest="$base/$commit_date"
-  chattroo -i "$base"
+  chattr -i "$base"
   rm -rf "$dest".inwork #cleanup
   rm -rf "$dest" #cleanup
   mkdir -p "$dest".inwork #suffix helps detecting partial downloads, etc.
