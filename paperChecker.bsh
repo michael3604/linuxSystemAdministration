@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-set -x
+#set -x
 
 title="checks if printer server can be reached"
 helpText="requires avahi to be installed"

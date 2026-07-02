@@ -6,8 +6,8 @@
 __MESSAGES_LIB_LOADED=1
 
 # pushover setup
-__PUSHOVER_TOKEN=$(cat /root/keyfiles/pushover/pushover.token)
-__PUSHOVER_USERKEY=$(cat /root/keyfiles/pushover/pushover.userkey)
+__PUSHOVER_TOKEN=$(cat /etc/3604/pushover/pushover.token)
+__PUSHOVER_USERKEY=$(cat /etc/3604/pushover/pushover.userkey)
 export LANG="${LANG:-C.UTF-8}"
 export LC_CTYPE="${LC_CTYPE:-C.UTF-8}"
 unset LC_ALL
