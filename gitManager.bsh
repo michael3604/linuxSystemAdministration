@@ -149,16 +149,15 @@ if [[ $pull -eq 1 ]]; then
   # create production folder
   commit_date=$(git show -s --format=%cI HEAD) # extract commit date
   dest="$base/$commit_date"
-  chattr -i "$base"
   rm -rf "$dest".inwork #cleanup
   rm -rf "$dest" #cleanup
   mkdir -p "$dest".inwork #suffix helps detecting partial downloads, etc.
   chmod -R a-w "$download" #additional protection for production scripts
   cp -a "$download"* "$dest".inwork
   mv "$dest".inwork "$dest" #atomic operation
+  chattr +i "$dest"
   ln -s "$dest" "$base"/current.new #for lxc containers
   mv -Tf "$base"/current.new "$base"/current #atomic operation
-  chattr -R +i "$base"
 
   # deploy
   ln -sfn "$base"/current "/scripts" #atomic operation, should keep currently running scripts in old folder undisturbed
