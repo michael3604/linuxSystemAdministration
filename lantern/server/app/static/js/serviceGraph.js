@@ -2,11 +2,12 @@ import {setupCanvas, clear, grid, drawText, statusColor, fillColor} from './canv
 import {timeLabel} from './format.js';
 
 export function drawServiceGraph(canvas, series, rangeSeconds) {
-  const {ctx, width, height} = setupCanvas(canvas);
+  const services = series.services || [];
+  const desiredHeight = services.length ? Math.max(260, 20 + 26 + services.length * 56) : 260;
+  const {ctx, width, height} = setupCanvas(canvas, desiredHeight);
   clear(ctx, width, height);
   const left = 210, right = 20, top = 20, bottom = 26;
   const graphW = width - left - right;
-  const services = series.services || [];
   if (!services.length) { drawText(ctx, 'No selected service data', 20, 40); return; }
   const laneH = Math.max(52, (height - top - bottom) / services.length);
   const end = Number(series.rangeEnd || Date.now() / 1000);
@@ -26,23 +27,53 @@ export function drawServiceGraph(canvas, series, rangeSeconds) {
     drawText(ctx, svc.unit || svc.sourceType, 12, laneMid+14, '#9ca3af', 10);
     const pts = (svc.points || []).filter(p => Number.isFinite(Number(p.ts))).sort((a,b) => a.ts-b.ts);
     if (!pts.length) return;
-    const numeric = pts.some(p => p.value !== null && p.value !== undefined);
+    const numericVals = pts.map(p => Number(p.value)).filter(Number.isFinite);
+    const numeric = numericVals.length > 0;
     let min = 0, max = 2;
+    function finiteOrNull(v) { const n = Number(v); return Number.isFinite(n) ? n : null; }
+    function roundLabel(v) {
+      const av = Math.abs(v);
+      if (av >= 1000) return String(Math.round(v));
+      if (av >= 10) return String(Math.round(v * 10) / 10);
+      return String(Math.round(v * 100) / 100);
+    }
     if (numeric) {
-      const vals = pts.map(p => Number(p.value)).filter(Number.isFinite);
-      min = Math.min(...vals); max = Math.max(...vals);
-      if (min === max) { min -= 1; max += 1; }
-      const pad = (max-min)*0.1; min -= pad; max += pad;
-      drawText(ctx, String(Math.round(max*100)/100), left-45, laneTop+8, '#64748b', 10);
-      drawText(ctx, String(Math.round(min*100)/100), left-45, laneBottom, '#64748b', 10);
+      const cfgMin = finiteOrNull(svc.graphMin);
+      const cfgMax = finiteOrNull(svc.graphMax);
+      if (cfgMin !== null && cfgMax !== null && cfgMax > cfgMin) {
+        min = cfgMin; max = cfgMax;
+      } else if ((svc.unit || '').trim() === '%') {
+        min = 0; max = 100;
+      } else {
+        min = Math.min(...numericVals);
+        max = Math.max(...numericVals);
+        if (min === max) {
+          const span = Math.max(Math.abs(max) * 0.1, 1);
+          min -= span; max += span;
+        } else {
+          const pad = Math.max((max-min)*0.1, 1e-9);
+          min -= pad; max += pad;
+        }
+        // Avoid visually absurd empty axes for sparse data: if all visible values
+        // are positive and the lower bound is near zero, pin the bottom to zero.
+        if (Math.min(...numericVals) >= 0 && min > 0 && min / max < 0.25) min = 0;
+      }
+      drawText(ctx, `${roundLabel(max)}${svc.unit ? ' ' + svc.unit : ''}`, left-70, laneTop+8, '#64748b', 10);
+      drawText(ctx, `${roundLabel(min)}${svc.unit ? ' ' + svc.unit : ''}`, left-70, laneBottom, '#64748b', 10);
     } else {
-      drawText(ctx, '2', left-22, laneTop+8, '#64748b', 10);
-      drawText(ctx, '0', left-22, laneBottom, '#64748b', 10);
+      drawText(ctx, 'bad 2', left-46, laneTop+8, '#64748b', 10);
+      drawText(ctx, 'good 0', left-55, laneBottom, '#64748b', 10);
+    }
+    function yValue(v) {
+      const t = (v - min) / Math.max(1e-9, (max - min));
+      return laneBottom - Math.max(0, Math.min(1, t)) * (laneBottom-laneTop);
     }
     function y(p) {
-      const v = numeric && p.value !== null && p.value !== undefined ? Number(p.value) : Number(p.stateNumeric ?? 2);
-      const t = (v - min) / (max - min);
-      return laneBottom - Math.max(0, Math.min(1, t)) * (laneBottom-laneTop);
+      if (numeric) {
+        const v = finiteOrNull(p.value);
+        return yValue(v === null ? numericVals[numericVals.length - 1] : v);
+      }
+      return yValue(Number(p.stateNumeric ?? 2));
     }
     // severity fill per segment
     for (let i=0;i<pts.length;i++) {

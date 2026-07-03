@@ -12,6 +12,13 @@ def now_text() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SUTC")
 
 
+def iso_utc(ts: object) -> str:
+    try:
+        return datetime.fromtimestamp(int(ts), timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except Exception:
+        return ""
+
+
 def parse_timestamp(value: object) -> Optional[int]:
     if value is None:
         return None

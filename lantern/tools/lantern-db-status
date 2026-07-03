@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 set -euo pipefail
-exec /opt/lantern/venv/bin/python /opt/lantern/db_status.py "$@"
+exec /opt/lantern-server/venv/bin/python /opt/lantern-server/db_status.py "$@"

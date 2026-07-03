@@ -1,5 +1,5 @@
 [Unit]
-Description=LANtern dashboard server
+Description=LANtern server
 After=network.target
 Wants=network.target
 
@@ -7,9 +7,9 @@ Wants=network.target
 Type=simple
 User=lantern
 Group=lantern
-WorkingDirectory=/opt/lantern
+WorkingDirectory=/opt/lantern-server
 Environment=LANTERN_SERVER_CONFIG=/etc/lantern/server.conf
-ExecStart=/opt/lantern/venv/bin/python -m server.app.serve
+ExecStart=/opt/lantern-server/venv/bin/python -m server.app.serve
 Restart=always
 RestartSec=5
 NoNewPrivileges=true
@@ -20,7 +20,7 @@ RuntimeDirectory=lantern
 RuntimeDirectoryMode=0755
 ExecStartPre=/usr/bin/mkdir -p /run/lantern/config /run/lantern/snapshots
 ExecStartPre=/bin/sh -c '[ -f /run/lantern/config/updateFrequency ] || printf "120\n" > /run/lantern/config/updateFrequency'
-ReadOnlyPaths=/opt/lantern /etc/lantern/server.conf /var/lib/success
+ReadOnlyPaths=/opt/lantern-server /etc/lantern/server.conf /var/lib/success
 ReadWritePaths=/var/lib/lantern/state /run/lantern
 
 [Install]

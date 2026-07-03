@@ -66,3 +66,10 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent);
   th, td { padding: 7px 7px; }
   .badge { min-width: 54px; padding: 3px 6px; font-size: 11px; }
 }
+
+.version { font-size: 0.55em; color: var(--muted); font-weight: 600; vertical-align: baseline; }
+
+/* Avoid browser scroll anchoring choosing frequently refreshed dashboard regions. */
+#serviceTable, #hostTable, #serviceGraph, #hostGraphs, .table-scroll, canvas {
+  overflow-anchor: none;
+}

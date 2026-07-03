@@ -11,8 +11,8 @@ NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_-]*$')
 
 
 def usage() -> int:
-    print('usage: createDataPoint <serviceName> <status> <text>')
-    print('   or: createDataPoint <serviceName> <status> <value> <unit> <text>')
+    print('usage: lanternDataPoint <serviceName> <status> <text>')
+    print('   or: lanternDataPoint <serviceName> <status> <value> <unit> <text>')
     return 2
 
 

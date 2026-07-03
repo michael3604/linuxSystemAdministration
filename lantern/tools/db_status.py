@@ -1,7 +1,7 @@
 from __future__ import annotations
 import sys
 
-sys.path.insert(0, '/opt/lantern')
+sys.path.insert(0, '/opt/lantern-server')
 from server.app.config import load_config, path_value
 from server.app import db
 

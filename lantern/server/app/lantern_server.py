@@ -10,8 +10,9 @@ from . import db
 from .api import api
 from .config import load_config, path_value
 from .ingest import ingest_once
+from .version import get_version
 
-APP_STATE = {"config": None}
+APP_STATE = {"config": None, "version": get_version()}
 
 
 def create_app() -> Flask:
@@ -27,7 +28,7 @@ def create_app() -> Flask:
 
     @app.route("/")
     def index():
-        return render_template("index.html")
+        return render_template("index.html", version=APP_STATE.get("version", "unknown"))
 
     start_ingest_thread(config)
     return app

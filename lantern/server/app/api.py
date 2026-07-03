@@ -9,7 +9,7 @@ from flask import Blueprint, jsonify, request
 from . import db
 from .config import path_value
 from .rules import effective_state, host_rule, numeric_state, service_rule
-from .timeutil import now_ts
+from .timeutil import iso_utc, now_ts
 
 api = Blueprint("api", __name__)
 
@@ -27,7 +27,7 @@ def _conn():
 @api.route("/api/config")
 def config_api():
     cfg = get_app_state()["config"]
-    return jsonify({"ui": cfg.get("ui", {}), "hosts": cfg.get("hosts", {})})
+    return jsonify({"version": get_app_state().get("version", "unknown"), "ui": cfg.get("ui", {}), "hosts": cfg.get("hosts", {})})
 
 
 @api.route("/api/update-frequency", methods=["GET", "POST"])
@@ -74,7 +74,7 @@ def hosts_current():
                 "status": status,
                 "ageSeconds": age,
                 "statsPresent": True,
-                "timestamp": row["rawTimestamp"],
+                "timestamp": iso_utc(row["sourceTimestamp"]),
                 "cpuPercent": row["cpuPercent"],
                 "ramPercent": row["ramPercent"],
                 "ramAvailableMb": row["ramAvailableMb"],
@@ -134,7 +134,7 @@ def services_current():
             "rawStatus": r["status"],
             "stateNumeric": numeric_state(state),
             "ageSeconds": age,
-            "timestamp": r["rawTimestamp"],
+            "timestamp": iso_utc(r["sourceTimestamp"]),
             "value": r["value"],
             "unit": r["unit"],
             "text": r["text"],
@@ -148,20 +148,19 @@ def _service_key(row: dict[str, Any] | Any) -> str:
     return f"{row['hostName']}/{row['serviceName']}/{row['sourceType']}"
 
 
-def _service_point(cfg: dict[str, Any], row: dict[str, Any] | Any, ts: int | None = None) -> dict[str, Any]:
-    """Return one graph point, recomputing stale state from the source timestamp.
+def _service_point(cfg: dict[str, Any], row: dict[str, Any] | Any, ts: int, state: str | None = None) -> dict[str, Any]:
+    """Return one graph point for the state that is valid at plot timestamp ``ts``.
 
-    serviceHistory stores the raw state at ingest time. For sparse checks this is
-    not enough for the graph: an 8-hour-old good datapoint should still be shown
-    inside a 10-minute graph range, but a too-old datapoint should become stale
-    according to its service maxAgeSeconds rule.
+    Staleness is time-dependent. A historical datapoint that is old *today* was
+    not stale at the time it was written. Therefore service graphs must evaluate
+    staleness at the plotted timestamp, not always relative to now.
     """
-    now = now_ts()
     source_ts = int(row["sourceTimestamp"])
     rule = service_rule(cfg, row["hostName"], row["serviceName"], row["sourceType"])
-    state = effective_state(row["status"], now - source_ts, float(rule.get("maxAgeSeconds", 90000)))
+    if state is None:
+        state = effective_state(row["status"], int(ts) - source_ts, float(rule.get("maxAgeSeconds", 90000)))
     return {
-        "ts": int(ts if ts is not None else source_ts),
+        "ts": int(ts),
         "sourceTs": source_ts,
         "status": state,
         "rawStatus": row["status"],
@@ -169,6 +168,22 @@ def _service_point(cfg: dict[str, Any], row: dict[str, Any] | Any, ts: int | Non
         "value": row["value"],
         "unit": row["unit"],
     }
+
+
+def _service_expiry_ts(cfg: dict[str, Any], row: dict[str, Any] | Any) -> int | None:
+    """Return the timestamp where this datapoint becomes stale, if applicable."""
+    base_state = str(row["status"])
+    if base_state in ("bad", "missing", "invalid"):
+        return None
+    rule = service_rule(cfg, row["hostName"], row["serviceName"], row["sourceType"])
+    try:
+        max_age = int(float(rule.get("maxAgeSeconds", 90000)))
+    except Exception:
+        return None
+    if max_age < 0:
+        return None
+    # effective_state uses age > maxAgeSeconds, so the first stale second is +1.
+    return int(row["sourceTimestamp"]) + max_age + 1
 
 
 @api.route("/api/service-series")
@@ -187,36 +202,67 @@ def service_series():
         rows = db.service_series(conn, since, requested_keys)
 
     groups: dict[str, dict[str, Any]] = {}
+    rows_by_key: dict[str, list[Any]] = defaultdict(list)
 
     def ensure_group(row: dict[str, Any] | Any) -> dict[str, Any]:
         key = _service_key(row)
+        rule = service_rule(cfg, row["hostName"], row["serviceName"], row["sourceType"])
+        graph_min = rule.get("graphMin")
+        graph_max = rule.get("graphMax")
         return groups.setdefault(key, {
             "key": key,
             "hostName": row["hostName"],
             "serviceName": row["serviceName"],
             "sourceType": row["sourceType"],
             "unit": row["unit"],
+            "graphMin": graph_min,
+            "graphMax": graph_max,
             "points": [],
         })
 
     for r in rows:
-        g = ensure_group(r)
-        # Clamp carry-forward seed rows to the graph start. This makes the API
-        # explicitly return drawable data inside the requested range instead of
-        # relying on browser-side reconstruction.
-        plot_ts = since if int(r["sourceTimestamp"]) < since else int(r["sourceTimestamp"])
-        g["points"].append(_service_point(cfg, r, plot_ts))
+        rows_by_key[_service_key(r)].append(r)
 
     # Fallback: if a selected service has no serviceHistory row in or before the
     # range, use serviceCurrent. This also protects databases created by older
     # LANtern versions or manually edited state.
     for key in requested_keys:
-        row = current_by_key.get(key)
-        if row is None:
+        if not rows_by_key.get(key) and key in current_by_key:
+            rows_by_key[key].append(current_by_key[key])
+
+    for key, service_rows in rows_by_key.items():
+        service_rows.sort(key=lambda r: int(r["sourceTimestamp"]))
+        if not service_rows:
             continue
-        g = ensure_group(row)
-        if not g["points"]:
-            g["points"].append(_service_point(cfg, row, since))
+        g = ensure_group(service_rows[-1])
+        if not g.get("unit"):
+            # Prefer the latest non-empty unit, but do not require one.
+            for r in reversed(service_rows):
+                if r["unit"]:
+                    g["unit"] = r["unit"]
+                    break
+
+        for idx, r in enumerate(service_rows):
+            source_ts = int(r["sourceTimestamp"])
+            next_ts = int(service_rows[idx + 1]["sourceTimestamp"]) if idx + 1 < len(service_rows) else server_now
+            if next_ts < since:
+                continue
+
+            segment_start = max(source_ts, since)
+            segment_end = min(next_ts, server_now)
+            if segment_start > server_now:
+                continue
+
+            g["points"].append(_service_point(cfg, r, segment_start))
+
+            expiry_ts = _service_expiry_ts(cfg, r)
+            if expiry_ts is not None and segment_start < expiry_ts <= segment_end:
+                rule = service_rule(cfg, r["hostName"], r["serviceName"], r["sourceType"])
+                max_age = float(rule.get("maxAgeSeconds", 90000))
+                before_expiry_state = effective_state(r["status"], segment_start - source_ts, max_age)
+                expiry_state = effective_state(r["status"], expiry_ts - source_ts, max_age)
+                if expiry_state != before_expiry_state:
+                    g["points"].append(_service_point(cfg, r, expiry_ts, expiry_state))
 
     for g in groups.values():
         g["points"].sort(key=lambda p: (p["ts"], p.get("sourceTs", p["ts"])))

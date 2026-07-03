@@ -1,22 +1,26 @@
 # LANtern
 
-
-## v0.5.2 behaviour notes
-
-- The default SSH shortcut pattern is `mainSsh-<clientUser>`, for example `mainSsh-paper`.
-- Service graphs now receive an explicit graph-start carry-forward point from the API, using `serviceCurrent` as fallback. Slow checks remain visible even when their JSON timestamp is older than the selected range.
-- Host-loss shading uses the configured `hostStatusMaxAgeSeconds`, not graph bucket size. This avoids false red bars in short graph ranges when clients update every 120 seconds.
-- Tables are horizontally scrollable on small screens; the service Show and Host / Service columns remain sticky, and the host name column remains sticky.
-
 LANtern is a small self-hosted LAN status dashboard for homelab systems.
 
 It deliberately stays file-based at the edge:
 
 - the LANtern client writes one regular `status.json` file
-- independent scripts create sparse service datapoints by calling `createDataPoint`
+- independent scripts create sparse service datapoints by calling `lanternDataPoint`
 - an external success-file system may rsync timestamp-only `.success` files to the server
 - the LANtern server ingests completed client snapshots and external success files into SQLite
 - alerting is intentionally out of scope
+
+## v0.5.15 behaviour notes
+
+- Runtime no longer depends on `/scripts` at all.
+- Server runtime is installed to `/opt/lantern-server`.
+- Client runtime is installed to `/opt/lantern-client`.
+- `lanternDataPoint` is installed to `/usr/local/bin/lanternDataPoint` and writes via `/opt/lantern-client`.
+- Systemd service names are `lantern-server.service` and `lantern-client.service`.
+- Primary installer names are `install-lantern-server.sh` and `install-lantern-client.sh`.
+- No compatibility installer names are shipped; obsolete names are intentionally removed.
+- Installers can be run from any working directory and do not modify the source/download directory.
+- Server and client installers do not run `apt-get update`; they only install missing Debian packages with `apt-get install --no-upgrade`.
 
 ## Server paths
 
@@ -29,10 +33,10 @@ Default server config:
 Default server data:
 
 ```text
-/opt/lantern                         installed server app
+/opt/lantern-server                  installed server app
 /var/lib/lantern/state/lantern.sqlite3
 /run/lantern/config/updateFrequency
-/run/lantern/snapshots/<host>/<snapshotId>/
+/mnt/lantern/snapshots/<host>/<snapshotId>/
 /var/lib/success/<host>/<service>.success
 ```
 
@@ -44,9 +48,12 @@ Default client config:
 /etc/lantern/client.conf
 ```
 
-Default local client data:
+Default client runtime:
 
 ```text
+/opt/lantern-client                  installed client app
+/usr/local/bin/lanternDataPoint       datapoint helper
+/usr/local/bin/lantern-client        manual client helper
 /run/lantern/local/status.json
 /run/lantern/local/<service>.json
 /run/lantern/outbox/<snapshotId>/
@@ -54,16 +61,44 @@ Default local client data:
 
 Success files are not created, moved, or synced by LANtern. They are an external input on the server.
 
-## Install server
+
+## Update installed components
+
+`update.sh` compares the release `VERSION` file against the installed component version files:
+
+```text
+/opt/lantern-server/VERSION
+/opt/lantern-client/VERSION
+```
+
+By default it updates only installed components whose version differs from the release version:
 
 ```bash
-cd /tmp
-sudo mkdir -p /scripts
-sudo tar -xzf lantern-v0.5.2.tar.gz -C /scripts
-cd /scripts/lantern
-sudo ./install.sh
+sudo /tmp/lantern/update.sh
+```
+
+Force reinstall of the same version:
+
+```bash
+sudo /tmp/lantern/update.sh --force
+```
+
+Explicitly update only one component:
+
+```bash
+sudo /tmp/lantern/update.sh --server
+sudo /tmp/lantern/update.sh --client
+```
+
+## Install server
+
+The installer can be run from anywhere. Example with an unpacked archive in `/tmp`:
+
+```bash
+tar -xzf lantern-v0.5.15.tar.gz -C /tmp
+sudo /tmp/lantern/install-lantern-server.sh
 sudo nano /etc/lantern/server.conf
-sudo systemctl restart lantern.service
+sudo systemctl restart lantern-server.service
 ```
 
 Open:
@@ -75,35 +110,40 @@ http://<server-ip>:8010/
 ## Install client
 
 ```bash
-cd /scripts/lantern
-sudo ./install-client.sh
+tar -xzf lantern-v0.5.15.tar.gz -C /tmp
+sudo /tmp/lantern/install-lantern-client.sh
 sudo nano /etc/lantern/client.conf
 sudo systemctl enable --now lantern-client.service
 ```
 
-The client may run directly from `/scripts/lantern/client`, so it can follow your existing Git/symlink update workflow.
+On first install, `/etc/lantern/client.conf` is generated from `hostname -s`:
+
+```json
+"hostName": "<hostname>",
+"sshShortcut": "mainSsh-<hostname>"
+```
 
 ## Create service datapoints
 
 Simple status datapoint:
 
 ```bash
-/scripts/lantern/createDataPoint "printerReachable" "good" "printer reachable"
+lanternDataPoint "printerReachable" "good" "printer reachable"
 ```
 
 Numeric datapoint:
 
 ```bash
-/scripts/lantern/createDataPoint "freeSpaceChecker" "good" 48 "%" "/ has 48% free space"
+lanternDataPoint "freeSpaceChecker" "good" 48 "%" "/ has 48% free space"
 ```
 
 Bad datapoint:
 
 ```bash
-/scripts/lantern/createDataPoint "backupDisk" "bad" "backup disk is missing"
+lanternDataPoint "backupDisk" "bad" "backup disk is missing"
 ```
 
-The command writes:
+The command writes atomically to:
 
 ```text
 /run/lantern/local/<service>.json
@@ -123,16 +163,16 @@ Example:
 
 ## Snapshot transfer
 
-The client creates snapshot directories ending in `.inWork`, rsyncs into them, then atomically renames them to the final snapshot name.
+The client creates snapshot directories ending in `.inWork`, transfers into them, then atomically renames them to the final snapshot name.
 
 ```text
-/run/lantern/snapshots/main/20260626T123010UTC.inWork/
-/run/lantern/snapshots/main/20260626T123010UTC/
+/mnt/lantern/snapshots/main/20260626T123010UTC.inWork/
+/mnt/lantern/snapshots/main/20260626T123010UTC/
 ```
 
 The server ignores `*.inWork` directories.
 
-If enabled, the client uses `rsync --link-dest` against the newest completed remote snapshot so unchanged service JSON files do not need to be retransferred.
+If enabled, the client uses `rsync --link-dest` over SSH. In `mode: local`, it hardlinks only from the previous completed destination snapshot and copies changed files safely, so it also works when `/run` and `/mnt` are different filesystems.
 
 ## Success files
 
@@ -153,9 +193,11 @@ Each file must contain exactly one timestamp line, for example:
 
 ## Useful commands
 
+Server:
+
 ```bash
-systemctl status lantern.service
-journalctl -u lantern.service -n 100 --no-pager
+systemctl status lantern-server.service
+journalctl -u lantern-server.service -n 100 --no-pager
 lantern-check
 lantern-db-status
 sudo lantern-reset-state
@@ -166,5 +208,13 @@ Client:
 ```bash
 systemctl status lantern-client.service
 journalctl -u lantern-client.service -n 100 --no-pager
-/scripts/lantern/client/lantern_client.py once
+lantern-client once
 ```
+
+## Dashboard notes
+
+- Host metrics graph uses dual vertical axes: `%` on the left for CPU/RAM/maintenance and `°C` on the right for CPU temperature.
+- Automatic dashboard refreshes preserve vertical page scroll position and horizontal table-scroll positions.
+- Service graphs receive an explicit graph-start carry-forward point from the API, using `serviceCurrent` as fallback.
+- Host-loss shading uses configured `hostStatusMaxAgeSeconds`.
+- Tables are horizontally scrollable on small screens; key name/show columns remain sticky.

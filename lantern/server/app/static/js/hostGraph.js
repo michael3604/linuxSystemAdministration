@@ -9,6 +9,45 @@ function line(ctx, pts, x, y, key) {
   ctx.stroke();
 }
 
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function drawAxes(ctx, left, top, w, h, right, height) {
+  ctx.save();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(148,163,184,.55)';
+  ctx.beginPath(); ctx.moveTo(left, top); ctx.lineTo(left, top+h); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(left+w, top); ctx.lineTo(left+w, top+h); ctx.stroke();
+
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'right';
+  for (let i=0; i<=4; i++) {
+    const value = 100 - i*25;
+    const yy = top + h*i/4;
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(`${value}%`, left-8, yy);
+    ctx.strokeStyle = 'rgba(148,163,184,.55)';
+    ctx.beginPath(); ctx.moveTo(left-4, yy); ctx.lineTo(left, yy); ctx.stroke();
+  }
+
+  ctx.textAlign = 'left';
+  for (let i=0; i<=4; i++) {
+    const value = 100 - i*25;
+    const yy = top + h*i/4;
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(`${value}°C`, left+w+8, yy);
+    ctx.strokeStyle = 'rgba(148,163,184,.55)';
+    ctx.beginPath(); ctx.moveTo(left+w, yy); ctx.lineTo(left+w+4, yy); ctx.stroke();
+  }
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  drawText(ctx, '%', left-28, top-4, '#94a3b8', 11);
+  drawText(ctx, '°C', left+w+16, top-4, '#94a3b8', 11);
+  ctx.restore();
+}
+
 export function renderHostGraphs(container, payload, rangeSeconds) {
   container.innerHTML = '';
   const hosts = payload.hosts || [];
@@ -19,14 +58,16 @@ export function renderHostGraphs(container, payload, rangeSeconds) {
     wrapper.innerHTML = `<div class="host-graph-title">${host.hostName}</div><canvas height="260"></canvas>`;
     container.appendChild(wrapper);
     const canvas = wrapper.querySelector('canvas');
-    const {ctx, width, height} = setupCanvas(canvas);
+    const {ctx, width, height} = setupCanvas(canvas, 260);
     clear(ctx, width, height);
-    const left=46,right=42,top=16,bottom=28,w=width-left-right,h=height-top-bottom;
+    const left=58,right=58,top=20,bottom=28,w=width-left-right,h=height-top-bottom;
     grid(ctx,left,top,w,h);
+    drawAxes(ctx,left,top,w,h,right,height);
     const now = Date.now()/1000, start = now-rangeSeconds;
     const pts = (host.points || []).sort((a,b)=>a.ts-b.ts);
-    const x = ts => left + Math.max(0, Math.min(1, (ts-start)/rangeSeconds))*w;
-    const yPct = v => top + h - Math.max(0, Math.min(100, v))*h/100;
+    const x = ts => left + clamp((ts-start)/rangeSeconds, 0, 1)*w;
+    const yPct = v => top + h - clamp(v, 0, 100)*h/100;
+    const yTemp = v => top + h - clamp(v, 0, 100)*h/100;
     // Stale overlay: only mark a host stale if no sample exists for longer than
     // its configured hostStatusMaxAgeSeconds. Do not infer loss from bucket size;
     // short graph ranges can have 1s buckets while clients update every 120s.
@@ -47,7 +88,7 @@ export function renderHostGraphs(container, payload, rangeSeconds) {
     }
     ctx.strokeStyle='#60a5fa'; ctx.lineWidth=2; line(ctx, pts, x, yPct, 'cpuPercent');
     ctx.strokeStyle='#a78bfa'; line(ctx, pts, x, yPct, 'ramPercent');
-    ctx.strokeStyle='#f97316'; line(ctx, pts, x, v => yPct(Math.max(0, Math.min(100, v || 0))), 'cpuTempC');
+    ctx.strokeStyle='#f97316'; line(ctx, pts, x, yTemp, 'cpuTempC');
     ctx.setLineDash([6,4]); ctx.strokeStyle='#fde047'; line(ctx, pts.map(p => ({...p, maintenanceMode: p.maintenanceMode ? 100 : 0})), x, yPct, 'maintenanceMode'); ctx.setLineDash([]);
     drawText(ctx,'CPU %',left+8,top+16,'#60a5fa',11); drawText(ctx,'RAM %',left+65,top+16,'#a78bfa',11); drawText(ctx,'Temp °C',left+125,top+16,'#f97316',11); drawText(ctx,'Maintenance',left+190,top+16,'#fde047',11);
     for (let i=0;i<=4;i++) { const xx=left+w*i/4; drawText(ctx, i===4?'now':timeLabel(start+rangeSeconds*i/4), xx-10, height-8, '#9ca3af', 10); }

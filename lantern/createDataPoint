@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-exec /usr/bin/python3 /scripts/lantern/client/create_data_point.py "$@"

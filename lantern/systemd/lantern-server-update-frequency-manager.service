@@ -1,0 +1,23 @@
+[Unit]
+Description=LANtern server update-frequency manager
+After=network.target lantern-server.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=lantern
+Group=lantern
+WorkingDirectory=/opt/lantern-server
+Environment=LANTERN_SERVER_CONFIG=/etc/lantern/server.conf
+ExecStart=/opt/lantern-server/venv/bin/python -m server.app.update_frequency_manager
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/lantern-server /etc/lantern/server.conf
+ReadWritePaths=/run/lantern
+
+[Install]
+WantedBy=multi-user.target

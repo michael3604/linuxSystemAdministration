@@ -1,11 +1,32 @@
-export function setupCanvas(canvas) {
+export function setupCanvas(canvas, desiredCssHeight = null) {
   const dpr = window.devicePixelRatio || 1;
+
+  let cssHeight = Number(desiredCssHeight);
+  if (!Number.isFinite(cssHeight) || cssHeight <= 0) {
+    if (!canvas.dataset.baseHeight) {
+      const attrHeight = Number(canvas.getAttribute('height'));
+      const rectHeight = canvas.getBoundingClientRect().height;
+      canvas.dataset.baseHeight = String(
+        Number.isFinite(attrHeight) && attrHeight > 0
+          ? attrHeight
+          : (Number.isFinite(rectHeight) && rectHeight > 0 ? rectHeight : 240)
+      );
+    }
+    cssHeight = Number(canvas.dataset.baseHeight);
+  }
+
+  cssHeight = Math.max(120, cssHeight);
+  canvas.style.height = `${cssHeight}px`;
+
   const rect = canvas.getBoundingClientRect();
-  canvas.width = Math.max(600, rect.width * dpr);
-  canvas.height = Math.max(240, canvas.height * dpr);
+  const cssWidth = Math.max(600, rect.width || canvas.clientWidth || 600);
+
+  canvas.width = Math.round(cssWidth * dpr);
+  canvas.height = Math.round(cssHeight * dpr);
+
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return {ctx, width: canvas.width / dpr, height: canvas.height / dpr};
+  return {ctx, width: cssWidth, height: cssHeight};
 }
 export function clear(ctx, width, height) {
   ctx.clearRect(0, 0, width, height);

@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_SRC="$(cd "$(dirname "$0")" && pwd)"
+APP_DST="/opt/lantern-server"
+CONFIG_DIR="/etc/lantern"
+STATE_DIR="/var/lib/lantern/state"
+SUCCESS_DIR="/var/lib/success"
+RUN_DIR="/run/lantern"
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "install-lantern-server.sh must run as root" >&2
+  exit 1
+fi
+
+ensure_debian_packages() {
+  local missing=()
+  local pkg
+
+  for pkg in "$@"; do
+    if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q '^install ok installed$'; then
+      missing+=("$pkg")
+    fi
+  done
+
+  if [ "${#missing[@]}" -eq 0 ]; then
+    echo "Required Debian packages are already installed."
+    return 0
+  fi
+
+  echo "Installing missing Debian packages only: ${missing[*]}"
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-upgrade "${missing[@]}"
+}
+
+ensure_debian_packages python3 python3-venv rsync sqlite3
+
+if ! id lantern >/dev/null 2>&1; then
+  useradd --system --home /var/lib/lantern --shell /usr/sbin/nologin lantern
+fi
+
+mkdir -p "$APP_DST" "$CONFIG_DIR" "$STATE_DIR" "$SUCCESS_DIR" "$RUN_DIR/config" "$RUN_DIR/snapshots"
+rsync -a --delete \
+  --exclude 'client/' \
+  --exclude '.git/' \
+  --exclude '__pycache__/' \
+  --exclude '*.pyc' \
+  "$APP_SRC/server" "$APP_SRC/requirements.txt" "$APP_SRC/VERSION" "$APP_DST/"
+
+python3 -m venv "$APP_DST/venv"
+"$APP_DST/venv/bin/pip" install --upgrade pip >/dev/null
+"$APP_DST/venv/bin/pip" install -r "$APP_DST/requirements.txt"
+
+if [ ! -f "$CONFIG_DIR/server.conf" ]; then
+  install -o root -g lantern -m 0640 "$APP_SRC/config/server.conf.example" "$CONFIG_DIR/server.conf"
+  echo "Created $CONFIG_DIR/server.conf. Please review it."
+fi
+
+chown -R lantern:lantern "$STATE_DIR" "$RUN_DIR/config"
+chmod 0750 "$STATE_DIR"
+chmod 0755 "$RUN_DIR" "$RUN_DIR/snapshots" "$SUCCESS_DIR"
+if [ ! -f "$RUN_DIR/config/updateFrequency" ]; then
+  printf '120\n' > "$RUN_DIR/config/updateFrequency"
+fi
+chown lantern:lantern "$RUN_DIR/config/updateFrequency"
+chmod 0644 "$RUN_DIR/config/updateFrequency"
+
+install -o root -g root -m 0644 "$APP_SRC/systemd/lantern-server.service" /etc/systemd/system/lantern-server.service
+install -o root -g root -m 0644 "$APP_SRC/systemd/lantern-server-update-frequency-manager.service" /etc/systemd/system/lantern-server-update-frequency-manager.service
+
+# Generate a path hardening override from the active server config. This keeps custom
+# ramdisk paths such as /mnt/lantern working.
+mkdir -p /etc/systemd/system/lantern-server.service.d
+SERVER_CONF="$CONFIG_DIR/server.conf" python3 - <<'PY2' > /etc/systemd/system/lantern-server.service.d/paths.conf
+import json
+import os
+from pathlib import Path
+
+conf = Path(os.environ['SERVER_CONF'])
+with conf.open('r', encoding='utf-8') as fh:
+    data = json.load(fh)
+paths = data.get('paths', {})
+
+def parent(path_value, fallback):
+    if not path_value:
+        return fallback
+    p = Path(path_value)
+    return str(p.parent if p.suffix or p.name else p)
+
+snapshot_root = parent(paths.get('snapshotFolder'), '/run/lantern')
+update_root = parent(paths.get('updateFrequencyFile'), '/run/lantern/config')
+state_root = paths.get('stateFolder', '/var/lib/lantern/state')
+success_root = paths.get('successFilesFolder', '/var/lib/success')
+
+print('[Service]')
+print('ReadOnlyPaths=')
+print('ReadWritePaths=')
+print(f'ReadOnlyPaths=/opt/lantern-server /etc/lantern/server.conf {success_root}')
+
+def add_path(paths_list, candidate):
+    candidate_path = Path(candidate)
+    for existing in paths_list:
+        try:
+            candidate_path.relative_to(Path(existing))
+            return
+        except ValueError:
+            pass
+    paths_list[:] = [existing for existing in paths_list if not Path(existing).is_relative_to(candidate_path)]
+    paths_list.append(str(candidate_path))
+
+write_paths = []
+for item in (state_root, snapshot_root, update_root):
+    add_path(write_paths, item)
+print('ReadWritePaths=' + ' '.join(write_paths))
+PY2
+
+install -o root -g root -m 0755 "$APP_SRC/tools/lantern-check" /usr/local/bin/lantern-check
+install -o root -g root -m 0755 "$APP_SRC/tools/lantern-db-status" /usr/local/bin/lantern-db-status
+install -o root -g root -m 0755 "$APP_SRC/tools/lantern-reset-state" /usr/local/bin/lantern-reset-state
+install -o root -g root -m 0644 "$APP_SRC/tools/check_inputs.py" "$APP_DST/check_inputs.py"
+install -o root -g root -m 0644 "$APP_SRC/tools/db_status.py" "$APP_DST/db_status.py"
+
+systemctl daemon-reload
+systemctl enable --now lantern-server.service
+
+echo "LANtern server installed to $APP_DST."
+echo "Review /etc/lantern/server.conf."
+echo "Server service: lantern-server.service"
+echo "Update-frequency manager service: lantern-server-update-frequency-manager.service"
+echo "Update-frequency manager is installed but not enabled automatically."

@@ -2,7 +2,7 @@ from __future__ import annotations
 import json, sys
 from pathlib import Path
 
-sys.path.insert(0, '/opt/lantern')
+sys.path.insert(0, '/opt/lantern-server')
 from server.app.config import load_config, path_value
 from server.app.timeutil import parse_timestamp
 

@@ -1,6 +1,6 @@
 {
   "version": 5,
-  "hostName": "paper",
+  "hostName": "main",
   "paths": {
     "runtimeFolder": "/run/lantern",
     "localDataFolder": "/run/lantern/local",
@@ -15,8 +15,8 @@
   },
   "transport": {
     "mode": "rsyncSsh",
-    "sshShortcut": "mainSsh-paper",
-    "remoteSnapshotFolder": "/run/lantern/snapshots",
+    "sshShortcut": "mainSsh-main",
+    "remoteSnapshotFolder": "/mnt/lantern/snapshots",
     "keepPerHost": 10,
     "useLinkDest": true,
     "sshTimeoutSeconds": 10

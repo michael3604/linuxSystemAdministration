@@ -3,7 +3,7 @@ set -euo pipefail
 #set -x
 
 title="checks if printer server can be reached"
-helpText="requires avahi to be installed"
+helpText="requires avahi to be installed: apt install avahi-daemon avahi-utils libnss-mdns"
 
 source /etc/3604/defaults.conf
 source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
@@ -16,6 +16,13 @@ argParse "$@" #parses the actual arguments according to the definitions above
 ok=1
 
 vrb "=== printer-discovery check ==="
+
+vrb "--- checking prerequisites ---"
+if dpkg -l avahi-daemon avahi-utils libnss-mdns >/dev/null ; then
+    vrb all software seems to be installed
+else
+    err at least one required software seems to be missing.
+fi
 
 vrb "--- CUPS web endpoint ---"
 if curl -fsS --max-time 5 "http://$PRINTER_SERVER_HOSTNAME:631/" >/dev/null; then
@@ -50,9 +57,9 @@ else
 fi
 
 if [ "$ok" -eq 1 ]; then
-    echo "OK: All tests passed. Printer server should be discoverable and reachable from LAN"
-    exit 0
+    lanternDataPoint paperChecker "good" "printer server can be detected from the LAN" || err error creating lantern data point
+    vrb "OK: All tests passed. Printer server should be discoverable and reachable from LAN"
 else
-    echo "BAD: printer discovery/reachability problem detected"
-    exit 1
+    lanternDataPoint paperChecker "bad" "printer server cannot be detected from the LAN"
+    inf "BAD: printer discovery/reachability problem detected" # no warning here, because already specifically done above.
 fi

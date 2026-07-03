@@ -1,12 +1,13 @@
 from __future__ import annotations
-import copy, json, os
+import copy, json, os, socket
 from pathlib import Path
 from typing import Any, Dict
 
 DEFAULT_CONFIG_PATH = "/etc/lantern/client.conf"
+DEFAULT_HOST_NAME = socket.gethostname().split(".", 1)[0]
 DEFAULTS: Dict[str, Any] = {
     "version": 5,
-    "hostName": os.uname().nodename,
+    "hostName": DEFAULT_HOST_NAME,
     "paths": {
         "runtimeFolder": "/run/lantern",
         "localDataFolder": "/run/lantern/local",
@@ -21,8 +22,8 @@ DEFAULTS: Dict[str, Any] = {
     },
     "transport": {
         "mode": "rsyncSsh",
-        "sshShortcut": f"mainSsh-{os.uname().nodename}",
-        "remoteSnapshotFolder": "/run/lantern/snapshots",
+        "sshShortcut": f"mainSsh-{DEFAULT_HOST_NAME}",
+        "remoteSnapshotFolder": "/mnt/lantern/snapshots",
         "keepPerHost": 10,
         "useLinkDest": True,
         "sshTimeoutSeconds": 10,
