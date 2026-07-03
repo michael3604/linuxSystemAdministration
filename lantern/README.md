@@ -218,3 +218,19 @@ lantern-client once
 - Service graphs receive an explicit graph-start carry-forward point from the API, using `serviceCurrent` as fallback.
 - Host-loss shading uses configured `hostStatusMaxAgeSeconds`.
 - Tables are horizontally scrollable on small screens; key name/show columns remain sticky.
+
+
+## Ignoring old service rows
+
+Services can be hidden from the current table and service-history graph without deleting SQLite history. Add patterns to `/etc/lantern/server.conf`:
+
+```json
+"services": {
+  "ignored": {
+    "*": ["debug*"],
+    "main": ["testStatus"]
+  }
+}
+```
+
+For timestamp-only success files, use the same shape under `successFiles.ignored`. Patterns without `/` match service names; patterns with `/` match `host/service`.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict
+from fnmatch import fnmatchcase
 
 STATE_NUMERIC = {
     "good": 0,
@@ -33,6 +34,42 @@ def effective_state(base_state: str, age_seconds: float | None, max_age_seconds:
     if age_seconds is not None and max_age_seconds is not None and age_seconds > max_age_seconds:
         return "stale"
     return base_state
+
+
+def service_is_ignored(config: Dict[str, Any], host: str, service: str, source_type: str = "serviceJson") -> bool:
+    """Return True if a service should be hidden from tables and graphs.
+
+    Config shape:
+      "services": {"ignored": {"*": ["debug*"], "main": ["testStatus"]}}
+      "successFiles": {"ignored": {"paper": ["oldBackup"]}}
+
+    Patterns without a slash match only service names. Patterns with a slash
+    match "host/service". Shell-style wildcards are supported.
+    """
+    root_key = "successFiles" if source_type == "successFile" else "services"
+    ignored = config.get(root_key, {}).get("ignored", {})
+    patterns: list[str] = []
+    if isinstance(ignored, list):
+        patterns.extend(str(x) for x in ignored)
+    elif isinstance(ignored, dict):
+        for key in ("*", host):
+            value = ignored.get(key, [])
+            if isinstance(value, str):
+                patterns.append(value)
+            elif isinstance(value, list):
+                patterns.extend(str(x) for x in value)
+    service_key = f"{host}/{service}"
+    for pattern in patterns:
+        pattern = str(pattern).strip()
+        if not pattern:
+            continue
+        if "/" in pattern:
+            if fnmatchcase(service_key, pattern):
+                return True
+        else:
+            if fnmatchcase(service, pattern):
+                return True
+    return False
 
 
 def service_rule(config: Dict[str, Any], host: str, service: str, source_type: str = "serviceJson") -> Dict[str, Any]:

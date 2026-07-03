@@ -37,8 +37,8 @@ DEFAULTS: Dict[str, Any] = {
         "bad": ["bad", "error", "failed", "unavailable", "down", "missing", "false", "0"],
         "unknown": ["unknown", "skipped", "maintenance", "n/a"],
     },
-    "services": {"defaults": {"maxAgeSeconds": 90000, "defaultVisibleInGraph": False}, "perService": {}},
-    "successFiles": {"defaults": {"maxAgeSeconds": 90000, "defaultVisibleInGraph": True}, "perService": {}},
+    "services": {"defaults": {"maxAgeSeconds": 90000, "defaultVisibleInGraph": False}, "ignored": {}, "perService": {}},
+    "successFiles": {"defaults": {"maxAgeSeconds": 90000, "defaultVisibleInGraph": True}, "ignored": {}, "perService": {}},
     "updateFrequencyManager": {
         "enabled": False,
         "checkIntervalSeconds": 5,

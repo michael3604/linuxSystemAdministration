@@ -48,6 +48,10 @@
       "maxAgeSeconds": 90000,
       "defaultVisibleInGraph": false
     },
+    "ignored": {
+      "*": [],
+      "main": ["testStatus"]
+    },
     "perService": {
       "main": {
         "freeSpaceChecker": {
@@ -63,6 +67,9 @@
     "defaults": {
       "maxAgeSeconds": 90000,
       "defaultVisibleInGraph": true
+    },
+    "ignored": {
+      "*": []
     },
     "perService": {}
   },

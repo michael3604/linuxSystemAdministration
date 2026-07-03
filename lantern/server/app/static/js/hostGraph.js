@@ -72,6 +72,8 @@ export function renderHostGraphs(container, payload, rangeSeconds) {
     // its configured hostStatusMaxAgeSeconds. Do not infer loss from bucket size;
     // short graph ranges can have 1s buckets while clients update every 120s.
     const maxAge = Number(host.maxAgeSeconds || 180);
+    const bucketSeconds = Number(payload.bucketSeconds || 0);
+    const staleThreshold = Math.max(maxAge, maxAge + bucketSeconds * 2);
     function markStale(fromTs, toTs) {
       const x1 = x(fromTs), x2 = x(toTs);
       if (x2 <= x1) return;
@@ -79,12 +81,12 @@ export function renderHostGraphs(container, payload, rangeSeconds) {
       ctx.strokeStyle='rgba(239,68,68,.65)'; ctx.beginPath(); ctx.moveTo(x1, top+5); ctx.lineTo(x2, top+5); ctx.stroke();
     }
     if (pts.length) {
-      if (pts[0].ts > start + maxAge) markStale(start, pts[0].ts);
+      if (pts[0].ts > start + staleThreshold) markStale(start, pts[0].ts);
       for (let i=0;i<pts.length-1;i++) {
-        if (pts[i+1].ts - pts[i].ts > maxAge) markStale(pts[i].ts + maxAge, pts[i+1].ts);
+        if (pts[i+1].ts - pts[i].ts > staleThreshold) markStale(pts[i].ts + staleThreshold, pts[i+1].ts);
       }
       const last = pts[pts.length-1].ts;
-      if (now - last > maxAge) markStale(last + maxAge, now);
+      if (now - last > staleThreshold) markStale(last + staleThreshold, now);
     }
     ctx.strokeStyle='#60a5fa'; ctx.lineWidth=2; line(ctx, pts, x, yPct, 'cpuPercent');
     ctx.strokeStyle='#a78bfa'; line(ctx, pts, x, yPct, 'ramPercent');

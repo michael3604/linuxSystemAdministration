@@ -8,7 +8,7 @@ from flask import Blueprint, jsonify, request
 
 from . import db
 from .config import path_value
-from .rules import effective_state, host_rule, numeric_state, service_rule
+from .rules import effective_state, host_rule, numeric_state, service_rule, service_is_ignored
 from .timeutil import iso_utc, now_ts
 
 api = Blueprint("api", __name__)
@@ -122,6 +122,8 @@ def services_current():
         rows = db.current_services(conn)
     services = []
     for r in rows:
+        if service_is_ignored(cfg, r["hostName"], r["serviceName"], r["sourceType"]):
+            continue
         rule = service_rule(cfg, r["hostName"], r["serviceName"], r["sourceType"])
         age = now - int(r["sourceTimestamp"])
         state = effective_state(r["status"], age, float(rule.get("maxAgeSeconds", 90000)))
@@ -196,9 +198,9 @@ def service_series():
     keys = [k for k in keys_arg.split(",") if k]
 
     with _conn() as conn:
-        current_rows = db.current_services(conn)
+        current_rows = [r for r in db.current_services(conn) if not service_is_ignored(cfg, r["hostName"], r["serviceName"], r["sourceType"])]
         current_by_key = {_service_key(r): r for r in current_rows}
-        requested_keys = keys or sorted(current_by_key)
+        requested_keys = [k for k in (keys or sorted(current_by_key)) if k in current_by_key]
         rows = db.service_series(conn, since, requested_keys)
 
     groups: dict[str, dict[str, Any]] = {}
@@ -221,6 +223,8 @@ def service_series():
         })
 
     for r in rows:
+        if service_is_ignored(cfg, r["hostName"], r["serviceName"], r["sourceType"]):
+            continue
         rows_by_key[_service_key(r)].append(r)
 
     # Fallback: if a selected service has no serviceHistory row in or before the
