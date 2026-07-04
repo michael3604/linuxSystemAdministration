@@ -49,7 +49,7 @@ else
 fi
 
 vrb "--- AirPrint/Mopria-style advertisement ---"
-if timeout 8 avahi-browse -rt _universal._sub._ipp._tcp 2>/dev/null | grep -qi "$PRINTER_NAME"; then
+if timeout 30 avahi-browse -rt _universal._sub._ipp._tcp 2>/dev/null | grep -qi "$PRINTER_NAME"; then
     vrb "OK: universal IPP subtype advertised"
 else
     wrn "universal IPP subtype not seen"
