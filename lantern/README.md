@@ -234,3 +234,16 @@ Services can be hidden from the current table and service-history graph without 
 ```
 
 For timestamp-only success files, use the same shape under `successFiles.ignored`. Patterns without `/` match service names; patterns with `/` match `host/service`.
+
+## Snapshot directory permissions
+
+The server snapshot root is a shared client inbox. LANtern creates it with mode `1777` rather than plain `0777`:
+
+```text
+/mnt/lantern/snapshots
+/run/lantern/snapshots
+```
+
+The sticky bit allows different SSH client users to create their own host directories while preventing them from deleting or renaming directories owned by other users. Host subdirectories such as `paper/` or `main/` are still created by the respective client.
+
+For ramdisk-backed paths, `install-lantern-server.sh` also writes `/etc/tmpfiles.d/lantern-server.conf`. This recreates the configured snapshot root and update-frequency file at boot. Clients deliberately do **not** create or chmod the shared snapshot root; they only create their own host subdirectory below it.

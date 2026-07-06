@@ -39,6 +39,7 @@ if ! id lantern >/dev/null 2>&1; then
 fi
 
 mkdir -p "$APP_DST" "$CONFIG_DIR" "$STATE_DIR" "$SUCCESS_DIR" "$RUN_DIR/config" "$RUN_DIR/snapshots"
+chmod 1777 "$RUN_DIR/snapshots"
 rsync -a --delete \
   --exclude 'client/' \
   --exclude '.git/' \
@@ -55,9 +56,98 @@ if [ ! -f "$CONFIG_DIR/server.conf" ]; then
   echo "Created $CONFIG_DIR/server.conf. Please review it."
 fi
 
+# Generate and apply a tmpfiles rule from the active server config. This is
+# important for ramdisk-backed paths such as /mnt/lantern: after every boot the
+# shared snapshot root must be recreated before clients connect, and it must be
+# 1777 from the beginning. Clients intentionally do not create/chmod this root.
+mkdir -p /etc/tmpfiles.d
+SERVER_CONF="$CONFIG_DIR/server.conf" python3 - <<'PY_TMPFILES' > /etc/tmpfiles.d/lantern-server.conf
+import json
+import os
+from pathlib import Path
+
+conf = Path(os.environ['SERVER_CONF'])
+with conf.open('r', encoding='utf-8') as fh:
+    data = json.load(fh)
+paths = data.get('paths', {})
+
+snapshot = Path(paths.get('snapshotFolder', '/run/lantern/snapshots'))
+state = Path(paths.get('stateFolder', '/var/lib/lantern/state'))
+success = Path(paths.get('successFilesFolder', '/var/lib/success'))
+update_file = Path(paths.get('updateFrequencyFile', '/run/lantern/config/updateFrequency'))
+
+lines = []
+seen = set()
+
+def add(line: str) -> None:
+    if line not in seen:
+        seen.add(line)
+        lines.append(line)
+
+def add_parent_dirs(path: Path, mode='0755', user='root', group='root') -> None:
+    # Add parents below common top-level mount/system directories, so tmpfiles
+    # can recreate an empty ramdisk tree such as /mnt/lantern without trying to
+    # manage broad directories like /mnt, /var, /run, or /.
+    parents = list(path.parents)
+    for parent in reversed(parents[:-1]):
+        if str(parent) in ('', '/', '/mnt', '/var', '/run', '/etc', '/opt'):
+            continue
+        add(f'd {parent} {mode} {user} {group} -')
+
+add('d /run/lantern 0755 lantern lantern -')
+add('d /run/lantern/config 0755 lantern lantern -')
+add('d /run/lantern/snapshots 1777 root root -')
+add('f /run/lantern/config/updateFrequency 0644 lantern lantern -')
+add('w /run/lantern/config/updateFrequency - - - - 120')
+
+add_parent_dirs(snapshot)
+add(f'd {snapshot} 1777 root root -')
+
+add_parent_dirs(update_file.parent)
+add(f'd {update_file.parent} 0755 lantern lantern -')
+add(f'f {update_file} 0644 lantern lantern -')
+add(f'w {update_file} - - - - 120')
+
+add_parent_dirs(state)
+add(f'd {state} 0750 lantern lantern -')
+
+add_parent_dirs(success)
+add(f'd {success} 0755 root root -')
+
+print('\n'.join(lines))
+PY_TMPFILES
+
+systemd-tmpfiles --create /etc/tmpfiles.d/lantern-server.conf
+
+# Also apply permissions immediately, because systemd-tmpfiles will not chmod an
+# existing directory if ownership/permissions were changed manually in some cases.
+SERVER_CONF="$CONFIG_DIR/server.conf" python3 - <<'PY_PATHS'
+import json
+import os
+from pathlib import Path
+
+conf = Path(os.environ['SERVER_CONF'])
+with conf.open('r', encoding='utf-8') as fh:
+    data = json.load(fh)
+paths = data.get('paths', {})
+for key, fallback in (
+    ('stateFolder', '/var/lib/lantern/state'),
+    ('successFilesFolder', '/var/lib/success'),
+):
+    Path(paths.get(key, fallback)).mkdir(parents=True, exist_ok=True)
+snapshot = Path(paths.get('snapshotFolder', '/run/lantern/snapshots'))
+snapshot.mkdir(parents=True, exist_ok=True)
+os.chmod(snapshot, 0o1777)
+update_file = Path(paths.get('updateFrequencyFile', '/run/lantern/config/updateFrequency'))
+update_file.parent.mkdir(parents=True, exist_ok=True)
+if not update_file.exists():
+    update_file.write_text('120\n', encoding='utf-8')
+PY_PATHS
+
 chown -R lantern:lantern "$STATE_DIR" "$RUN_DIR/config"
 chmod 0750 "$STATE_DIR"
-chmod 0755 "$RUN_DIR" "$RUN_DIR/snapshots" "$SUCCESS_DIR"
+chmod 0755 "$RUN_DIR" "$SUCCESS_DIR"
+chmod 1777 "$RUN_DIR/snapshots"
 if [ ! -f "$RUN_DIR/config/updateFrequency" ]; then
   printf '120\n' > "$RUN_DIR/config/updateFrequency"
 fi

@@ -98,7 +98,12 @@ def ingest_host_snapshot(conn, config: Dict[str, Any], host: str, snap: Path, ts
 
 def ingest_snapshots(conn, config: Dict[str, Any]) -> None:
     root = path_value(config, "snapshotFolder")
-    root.mkdir(parents=True, exist_ok=True)
+    # The snapshot root is a shared client inbox. It must be created by the
+    # server install/boot path with 1777 permissions, not lazily by the ingest
+    # loop with the service user's default umask. An empty/missing ramdisk inbox
+    # is simply treated as no snapshots available yet.
+    if not root.exists():
+        return
     ignored = set(config.get("hosts", {}).get("ignored", []))
     hosts = set(list_hosts(root)) | set(config.get("hosts", {}).get("expected", []))
     keep = int(config.get("snapshots", {}).get("keepPerHost", 10))

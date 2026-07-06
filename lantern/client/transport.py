@@ -14,7 +14,11 @@ def remote_cmd(ssh: str, command: str) -> subprocess.CompletedProcess:
 
 def find_remote_previous(ssh: str, remote_root: str, host: str) -> str | None:
     host_dir = f"{remote_root.rstrip('/')}/{host}"
+    # The client may create its own host directory, but it must not create the
+    # shared snapshot root. The server/tmpfiles owns the snapshot root and its
+    # 1777 permissions.
     cmd = (
+        f"test -d {shlex.quote(remote_root.rstrip('/'))} || exit 66; "
         f"mkdir -p {shlex.quote(host_dir)}; "
         f"find {shlex.quote(host_dir)} -mindepth 1 -maxdepth 1 -type d ! -name '*.inWork' -printf '%f\\n' "
         "| sort | tail -n 1"
@@ -51,7 +55,16 @@ def push_rsync_ssh(config: Dict[str, Any], snapshot_id: str, snapshot_path: Path
     remote_host_dir = f"{remote_root}/{host}"
     remote_inwork = f"{remote_host_dir}/{snapshot_id}.inWork"
     remote_final = f"{remote_host_dir}/{snapshot_id}"
-    remote_cmd(ssh, f"mkdir -p {shlex.quote(remote_host_dir)} && rm -rf {shlex.quote(remote_inwork)}")
+    remote_cmd(
+        ssh,
+        # Do not create or chmod remote_root here. It is a shared inbox owned by
+        # the server boot/install process and should already exist with 1777
+        # permissions. Creating it from the first client can leave it as 0755.
+        f"test -d {shlex.quote(remote_root)} || "
+        f"(echo 'LANtern remote snapshot root missing: {shlex.quote(remote_root)}' >&2; exit 66); "
+        f"mkdir -p {shlex.quote(remote_host_dir)} && "
+        f"rm -rf {shlex.quote(remote_inwork)}",
+    )
     rsync = ['rsync', '-a', '--delete']
     if tr.get('useLinkDest', True):
         prev = find_remote_previous(ssh, remote_root, host)
@@ -130,6 +143,16 @@ def push_local(config: Dict[str, Any], snapshot_id: str, snapshot_path: Path) ->
     final = host_dir / snapshot_id
     keep = int(tr.get('keepPerHost', 10))
 
+    if not root.exists():
+        raise FileNotFoundError(
+            f"LANtern local snapshot root missing: {root}. "
+            "Create it on the server side with mode 1777 before starting clients."
+        )
+    if not root.is_dir():
+        raise NotADirectoryError(f"LANtern local snapshot root is not a directory: {root}")
+    # Do not create or chmod root here. The server boot/install process owns the
+    # shared snapshot root and its 1777 permissions. The client only creates its
+    # own host subdirectory.
     host_dir.mkdir(parents=True, exist_ok=True)
     if inwork.exists():
         shutil.rmtree(inwork)
