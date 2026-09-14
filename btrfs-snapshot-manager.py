@@ -40,9 +40,9 @@ def parse_arguments():
     '''
     parser.add_argument('-f', '--filesystem',  default="/", help='btrfs filesystem. e.g. "/home" or "/"')
     parser.add_argument('-b', '--mountpointbasefolder',  default="/mnt/root-snapshots", help='basefolder of the snapshot e.g. "/mnt/home-snapshots"')
-    parser.add_argument('-d', '--days',    default=15, type=int, help='number of days a snapshot is kept')
-    parser.add_argument('-w', '--weeks',   default=4, type=int, help='number of weeks for which one snapshot each is kept')
-    parser.add_argument('-m', '--months',  default=6, type=int, help='number of month for which one snapshot each is kept')
+    parser.add_argument('-d', '--days',    default=12, type=int, help='number of days a snapshot is kept')
+    parser.add_argument('-w', '--weeks',   default=3, type=int, help='number of weeks for which one snapshot each is kept')
+    parser.add_argument('-m', '--months',  default=2, type=int, help='number of month for which one snapshot each is kept')
     parser.add_argument('-v', '--verbose', action='store_true', help='enable verbose output')
     parser.add_argument(      '--dry-run', action='store_true', help='enable dry-run mode where no scripts are executed.')
     parser.add_argument(      '--writeable', action='store_true', help='make the snapshots writeable.')
