@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#set -x
+
+title="downlaods Emails and fixes file access"
+helpText='after downloading Emails, fixes file access so new emails
+  can be downloaded by mbsync, but (except for non-gmail-inboxes)
+  no longer deleted.'
+
+source /etc/3604/defaults.conf
+source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
+
+#argDefineValue   "propellantType" "p" "propellant Type"       required  #creates required string argument
+#argDefineValue   "stages"         "s" "Stages of the lauch vehicle" default=2 #creates value argument with default
+#argDefineBool    "testAbort"      "e" "creates a test error"           #creates a test error
+#argDefinePositional "bodyStart" "Start of the spacecraft"
+#argDefinePositional "bodyStop"  "Target of the spacecraft"
+
+argParse "$@" #parses the actual arguments according to the definitions above
+
+lock #creates a lock file, accepts parameter for different locks, i.e. lock stage1, would only lock stage1
+inf downloading emails #creates an info message
+
+
+ROOT="/var/email"
+CONFIG_DIR="/etc/mbsync"
+
+# Must run as root
+(( EUID == 0 )) || {
+    err "ERROR: Must run as root"
+}
+
+
+fixPermissions() {
+    local path="$1"
+    local owner="$2"
+    local dirMode="$3"
+    local exclude="${4:-}"
+    local -a skip=()
+
+    # Optionally exclude a directory and its contents
+    if [[ -n "$exclude" ]]; then
+        skip=(-path "$exclude" -prune -o)
+    fi
+
+    vrb "fixing $path ($owner, $dirMode)"
+
+    # Directory ownership
+    find "$path" "${skip[@]}" -type d \
+        \( ! -user "$owner" -o ! -group mailArchive \) \
+        -exec chown "$owner":mailArchive {} +
+
+    # Directory permissions
+    find "$path" "${skip[@]}" -type d ! -perm "$dirMode" \
+        -exec chmod "$dirMode" {} +
+
+    # Message ownership
+    find "$path" "${skip[@]}" -type f \
+        \( -path '*/cur/*' -o -path '*/new/*' \) \
+        \( ! -user "$owner" -o ! -group mailArchive \) \
+        -exec chown "$owner":mailArchive {} +
+
+    # Message permissions
+    find "$path" "${skip[@]}" -type f \
+        \( -path '*/cur/*' -o -path '*/new/*' \) \
+        ! -perm 0640 \
+        -exec chmod 640 {} +
+}
+
+# Discover all account configurations
+shopt -s nullglob
+configs=("$CONFIG_DIR"/*.conf)
+
+if (( ${#configs[@]} == 0 )); then
+    err "No configuration files found."
+fi
+
+status=0
+
+for config in "${configs[@]}"; do
+    inf "=== Downloading: $(basename "$config") ==="
+
+    if runuser -u mailGetter -- sh -c '
+      umask 027
+      exec mbsync -c "$1" -a
+      ' sh "$config"; then
+        inf "$(basename "$config") downloaded"
+    else
+        wrn "$config failed"
+        status=1
+    fi
+done
+
+inf "fixing file and folder permissions"
+
+# Root and user directories
+find "$ROOT" -maxdepth 1 -type d \
+    \( ! -user mailArchive -o ! -group mailArchive \) \
+    -exec chown mailArchive:mailArchive {} +
+
+find "$ROOT" -maxdepth 1 -type d ! -perm 3770 \
+    -exec chmod 3770 {} +
+
+# Each account
+for account in "$ROOT"/*/*; do
+    [[ -d "$account" && ! -L "$account" ]] || continue
+
+    name="${account##*/}"
+    inbox="$account/Inbox"
+
+    inf "processing $name"
+
+    vrb "fixing all non-inbox files and folders"
+    fixPermissions "$account" mailArchive 3770 "$inbox"
+
+    # Inbox: policy depends on provider
+    if [[ -d "$inbox" && ! -L "$inbox" ]]; then
+        case "${name,,}" in
+            *@gmail.com|*@googlemail.com)
+                vrb "Gmail Inbox detected, fixing permissions accordingly"
+                fixPermissions "$inbox" mailArchive 3770
+                ;;
+            *)
+                vrb "Non-Gmail Inbox detected, fixing permissions accordingly"
+                fixPermissions "$inbox" mailGetter 2750
+                ;;
+        esac
+    fi
+done

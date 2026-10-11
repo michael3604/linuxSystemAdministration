@@ -166,7 +166,7 @@ arg_print_help() {
 
     fi
 
-    echo ${helpText:="no further help available."}
+    echo "${helpText:="no further help available."}"
 }
 
 # ============================================================
