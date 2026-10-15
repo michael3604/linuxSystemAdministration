@@ -7,7 +7,11 @@ lock
 
 needrestart --version > /dev/null || apt install -y needrestart
 
-/scripts/gitManager.bsh -g
+if [ "$(systemd-detect-virt --container 2>/dev/null)" = "lxc" ]; then
+    inf "Running in LXC, skipping upgrade of scripts"
+else
+    /scripts/gitManager.bsh -g
+fi
 
 #ToDo: docker
 

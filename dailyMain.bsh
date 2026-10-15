@@ -73,10 +73,17 @@ done
 /scripts/recordings-cleaner.bsh
 inf "downloading Lenas iCloud"
 ( sudo -u user76 /snap/bin/lxc exec mainICloudPD -- sudo -u lena /home/lena/iCloudPDDownloader.bsh )  || sudo /scripts/pushover.bsh "lenas icloud error. 2FA reset required?"
-inf "google mail archive and calendar backup"
+inf "mail archive and calendar backup"
 ( sudo -u user76 /snap/bin/lxc exec mainGoogleBackup -- /root/googleBackup.bsh ) || sudo /scripts/pushover.bsh "google backup error"
 ( sudo -u user76 /snap/bin/lxc exec mainEmailArchive2 -- doveadm fts rescan -u 'michael' ) || wrn "mainEmailArchive: rescan Michael did not work"
 ( sudo -u user76 /snap/bin/lxc exec mainEmailArchive2 -- doveadm fts rescan -u 'lena' ) || wrn "mainEmailArchive: rescan Lena did not work"
+
+( sudo -u user76 /snap/bin/lxc start mainEmailGetter)
+( sudo -u user76 /snap/bin/lxc exec mainEmailGetter -- /scripts/emailGetter.bsh )
+( sudo -u user76 /snap/bin/lxc exec mainEmailGetter -- /scripts/os-upgrader.bsh ) ### ToDo: check for errors
+( sudo -u user76 /snap/bin/lxc stop mainEmailGetter)
+
+### ToDo: download calendar
 
 inf "verifiying google Backup"
 /scripts/googleEmailBackupValidator.bsh
