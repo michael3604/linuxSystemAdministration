@@ -83,10 +83,9 @@ status=0
 for config in "${configs[@]}"; do
     inf "=== Downloading: $(basename "$config") ==="
 
-    if runuser -u mailGetter -- sh -c '
-      umask 027
-      exec mbsync -c "$1" -a
-      ' sh "$config"; then
+    if runuser -u mailGetter -- \
+        bash -c 'umask 027; exec mbsync -c "$1" -a' \
+        _ "$config"; then
         inf "$(basename "$config") downloaded"
     else
         wrn "$config failed"
@@ -94,7 +93,8 @@ for config in "${configs[@]}"; do
     fi
 done
 
-inf "fixing file and folder permissions"
+
+inf "=== fixing file and folder permissions ==="
 
 # Root and user directories
 find "$ROOT" -maxdepth 1 -type d \
