@@ -85,7 +85,7 @@ inf "mail archive and calendar backup"
 ### ToDo: download calendar
 
 inf "verifiying google Backup"
-/scripts/googleEmailBackupValidator.bsh
+/scripts/emailBackupValidator.bsh
 inf "updating python libraries of mainMonitor"
 sudo -u user76 /snap/bin/lxc exec mainMonitor -- /scripts/monitor/update.sh
 ### chown of iCloudPD files not neccessary, because users of both containers happen to have the same uid. otherwise use either --shift in lxc devices or chown with groups.

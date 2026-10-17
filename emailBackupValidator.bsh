@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#set -x
+
+title="checks if emails have arrived"
+helpText="lorem ipsum salem norum."
+
+source /etc/3604/defaults.conf
+source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
+
+CONFIG="/root/checkNewEmails.conf"
+
+argDefineValue   "baseDir" "b" "base directory" default="/tank/backup/email"
+argDefineValue   "pattern" "p" "file pattern" default='^[0-9]+\.[0-9]+_[0-9]+\..*,U=[0-9]+:[0-9]+,[A-Za-z]*$'
+argDefineValue   "defaultMinAge" "a" "default minimum age of file in days, if not overriden by config file in $CONFIG" default=14
+
+# config file looks like this
+# #email-account=minimum-age-in-days
+# foo@bar.com=3
+# baz@foo.org=23
+
+argParse "$@" #parses the actual arguments according to the definitions above
+
+lock #creates a lock file, accepts parameter for different locks, i.e. lock stage1, would only lock stage1
+
+vrb Load per-account minimum-age overrides.
+declare -A minAgeOverrides=()
+if [[ -f "$CONFIG" ]]; then
+    vrb config file found
+    while IFS='=' read -r account days; do
+        [[ -z "$account" || "$account" == \#* ]] && continue
+        [[ "$days" =~ ^[0-9]+$ ]] || {
+            err "Invalid config entry: $account=$days" >&2
+        }
+        minAgeOverrides["$account"]="$days"
+    done < "$CONFIG"
+else
+    wrn "No config file found; using default age of $defaultMinAge days."
+fi
+
+now=$(date +%s)
+found=0
+
+# Iterate over user accounts.
+while IFS= read -r -d '' userDir; do
+    userAccount=${userDir##*/}
+
+    # Iterate over email accounts belonging to this user.
+    while IFS= read -r -d '' emailDir; do
+        emailAccount=${emailDir##*/}
+
+        # Apply account-specific minimum age, or use the default.
+        accountMinAge=${minAgeOverrides["$emailAccount"]:-$defaultMinAge}
+        cutoff=$((now - accountMinAge * 86400))
+
+        # Iterate over email folders.
+        while IFS= read -r -d '' folderDir; do
+            emailFolder=${folderDir##*/}
+            inf "Checking $userAccount, $emailAccount, $emailFolder"
+
+            recentFound=0
+
+            # Find matching files modified after the cutoff.
+            while IFS= read -r -d '' file; do
+                name=${file##*/}
+
+                if [[ "$name" =~ $pattern ]]; then
+                    vrb "Recent email found: $file"
+                    recentFound=1
+                    break
+                fi
+            done < <(
+                find "$folderDir" -type f \
+                    -newermt "@$cutoff" -print0
+            )
+
+            if (( recentFound == 0 )); then
+                wrn "No recent emails found for $emailAccount of $userAccount in folder $emailFolder (threshold: $accountMinAge days)"
+            fi
+
+        done < <(find "$emailDir" -mindepth 1 -maxdepth 1 -type d -print0)
+
+    done < <(find "$userDir" -mindepth 1 -maxdepth 1 -type d -print0)
+
+done < <(find "$baseDir" -mindepth 1 -maxdepth 1 -type d -print0)
+
+success #writes the successfile
+#success test #writes a sucessfile with the suffix test
