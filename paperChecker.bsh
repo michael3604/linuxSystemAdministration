@@ -9,68 +9,69 @@ source /etc/3604/defaults.conf
 source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
 source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
 source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+source $(dirname "$0")/lib/reboot.lib.bsh #creates reboot handler functions , rebootInhibitor start, rebootInhibitor stop
 source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
 
 argParse "$@" #parses the actual arguments according to the definitions above
 
 declare -i bad=0
+declare -i badCupsWeb=0
+declare -i badCupsEnd=0
+declare -i badAvahi=0
 declare -i n=0
 
 vrb "=== printer-discovery check ==="
 
-vrb "--- checking prerequisites ---"
-if dpkg -l avahi-daemon avahi-utils libnss-mdns >/dev/null ; then
-    vrb all software seems to be installed
-else
-    err at least one required software seems to be missing.
-fi
-
-vrb "--- CUPS web endpoint ---"
-if curl -fsS --max-time 5 "http://$PRINTER_SERVER_HOSTNAME:631/" >/dev/null; then
-    vrb "OK: CUPS reachable"
-else
-    wrn "CUPS not reachable"
-    bad+=1
-fi
-
-vrb "--- CUPS printer queue endpoint ---"
-if curl -fsS --max-time 5 "http://$PRINTER_SERVER_HOSTNAME:631/printers/$PRINTER_SERVER_QUEUE" >/dev/null; then
-    vrb "OK: printer queue URL reachable"
-else
-    wrn "printer queue URL not reachable"
-    bad+=1
-fi
-
-vrb "--- DNS-SD IPP advertisement ---"
-if timeout 8 avahi-browse -rt _ipp._tcp 2>/dev/null | grep -q "$PRINTER_SERVER_QUEUE"; then
-    vrb "OK: IPP printer service advertised"
-else
-    wrn "IPP printer service not advertised"
-    bad+=1
-fi
-
-vrb "--- AirPrint/Mopria-style advertisement ---"
-n=0
 while : ; do
-    if timeout 20 avahi-browse -rt _universal._sub._ipp._tcp 2>/dev/null | grep -qi "$PRINTER_NAME"; then
-        vrb "OK: universal IPP subtype advertised"
-        break
-    else
-        n+=1
-        sleep 1
-        vrb "universal IPP subtype not seen, retrying..."
-    fi
-    if [ "$n" -gt 10 ]; then
-        wrn "BAD: universal IPP subtype not advertised"
-        bad+=1
-        break
-    fi
-done
 
-if [ "$bad" -eq 0 ]; then
-    lanternDataPoint paperChecker "good" "printer server can be detected from the LAN" || err error creating lantern data point
-    vrb "OK: All tests passed. Printer server should be discoverable and reachable from LAN"
-else
-    lanternDataPoint paperChecker "bad" "printer server cannot be detected from the LAN"
-    inf "BAD: printer discovery/reachability problem detected" # no warning here, because already specifically done above.
-fi
+  vrb "--- checking prerequisites ---"
+  if dpkg -l avahi-daemon avahi-utils libnss-mdns >/dev/null ; then
+      vrb all software seems to be installed
+  else
+      err at least one required software seems to be missing.
+  fi
+
+  vrb "--- CUPS web endpoint ---"
+  if curl -fsS --max-time 5 "http://$PRINTER_SERVER_HOSTNAME:631/" >/dev/null; then
+      vrb "OK: CUPS reachable"
+      badCupsWeb=0
+  else
+      inf "BAD: CUPS not reachable, restarting"
+      systemctl restart cups.service
+      badCupsWeb=$((badCupsWeb + 1))
+  fi
+
+  vrb "--- CUPS printer queue endpoint ---"
+  if curl -fsS --max-time 5 "http://$PRINTER_SERVER_HOSTNAME:631/printers/$PRINTER_SERVER_QUEUE" >/dev/null; then
+      vrb "OK: CUPS endpoint reachable"
+      badCupsEnd=0
+  else
+      inf "BAD: CUPS Endpoint not reachable, restarting"
+      systemctl restart cups.service
+      badCupsEnd=$((badCupsEnd + 1))
+  fi
+
+  vrb "--- AirPrint/Mopria-style advertisement ---"
+  if timeout 8 avahi-browse -rt _ipp._tcp 2>/dev/null | grep -q "$PRINTER_SERVER_QUEUE" ; then
+      vrb "OK: IPP printer service advertised"
+      badAvahi=0
+  else
+      inf "BAD: IPP printer service not advertised, restarting"
+      systemctl restart avahi-daemon.service
+      badAvahi=$((badAvahi + 1))
+  fi
+
+  # processing failure types
+  if [[ $badAvahi -gt 30 ]] || [[ $badCupsEnd -gt 30 ]] || [[ $badCupsWeb -gt 30 ]]; then
+     wrn requesting reboot. badCupsWeb: $badCupsWeb, badCupsEnd: $badCupsEnd, badAvahi: $badAvahi
+     rebootRequest
+  fi
+  if [[ $badAvahi -gt 0 ]] || [[ $badCupsEnd -gt 0 ]] || [[ $badCupsWeb -gt 0 ]]; then
+     vrb sleeping 10 s
+     sleep 10
+  else
+     vrb sleeping 120 s
+     sleep 120
+  fi
+
+done
