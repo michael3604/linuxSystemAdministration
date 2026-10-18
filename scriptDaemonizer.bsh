@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#set -x
+
+title="creates a daemon for a script so it runs continously"
+helpText="lorem ipsum salem norum."
+
+source /etc/3604/defaults.conf
+source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
+
+argDefineValue   "restartType" "r" "type of restart. e.g. always or on-failure" default="always"  #creates required string argument
+argDefineValue   "restartDelay" "d" "time between restarts in seconds" default=10  #creates required string argument
+argDefinePositional "script" "path to script"
+
+argParse "$@" #parses the actual arguments according to the definitions above
+
+if [[ ! -f "$script" || ! -x "$script" ]]; then
+    err "Script must be an executable file: $script" >&2
+fi
+
+name="$(basename "$script")"
+name="${name%.*}"
+service="${name}.service"
+unit="/etc/systemd/system/$service"
+
+if [[ $EUID -ne 0 ]]; then
+    err "Please run as root (e.g. sudo $0 $1)."
+fi
+
+inf script: "$script"
+
+### check for existing system file
+if [[ -e "$unit" ]]; then
+    wrn "$unit" already exists!
+    read -r -p "$unit already exists. Overwrite? [y/N] " answer
+    if [[ ! "$answer" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+        echo "Aborted."
+        exit 0
+    fi
+fi
+
+### write system file
+
+cat > "$unit" <<EOF
+[Unit]
+Description=Bash script: $script
+After=network-online.target
+
+[Service]
+Type=exec
+ExecStart=$script
+Restart=$restartType
+RestartSec=$restartDelay
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+### start and check service
+
+systemctl daemon-reload
+systemctl enable --now "$service"
+
+inf "Installed and started: $service"
+systemctl --no-pager status "$service" || true

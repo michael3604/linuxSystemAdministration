@@ -134,7 +134,7 @@ if [[ $pull -eq 1 ]]; then
     fi
   fi
 
-  #validate download
+  vrb === validate download ===
   calculate "$download/.validation" "$tmpVal"
   vrb "diffing..."
   if [[ $verbose -eq 1 ]]; then
@@ -146,7 +146,7 @@ if [[ $pull -eq 1 ]]; then
   diff "$tmpVal" "$download/.validation" || err "Validation failed! Check hashes in validation file!"
   inf "validation successful"
 
-  # create production folder
+  vrb === creating production folder ===
   commit_date=$(git show -s --format=%cI HEAD) # extract commit date
   dest="$base/$commit_date"
   rm -rf "$dest".inwork #cleanup
@@ -159,9 +159,41 @@ if [[ $pull -eq 1 ]]; then
   ln -s "$dest" "$base"/current.new #for lxc containers
   mv -Tf "$base"/current.new "$base"/current #atomic operation
 
-  # deploy
+  vrb === deploying ===
   ln -sfn "$base"/current "/scripts" #atomic operation, should keep currently running scripts in old folder undisturbed
   inf "repo downloaded to $dest and deployed to /scripts and $base/current"
+
+  inf === restarting daemons if necessary ===
+
+  services_changed=0
+
+  while IFS= read -r -d '' script; do
+    filename="${script##*/}"
+    name="${filename%.*}"
+    service="${name}.service"
+    unit="/etc/systemd/system/$service"
+
+    # Skip scripts without a corresponding service file.
+    [[ -f "$unit" ]] || continue
+
+    # Restart only if the script is newer than the service file.
+    if [[ "$unit" -ot "$script" ]]; then
+        echo "Updated script detected: $script"
+
+        if systemctl restart "$service"; then
+            touch -- "$unit"
+            echo "Restarted $service"
+            services_changed=1
+        else
+            echo "ERROR: Failed to restart $service" >&2
+        fi
+    fi
+  done < <(find -H /scripts -type f -executable -print0)
+
+  # Notify systemd that unit-file timestamps have changed.
+  if (( services_changed )); then
+    systemctl daemon-reload
+  fi
 
 fi
 
