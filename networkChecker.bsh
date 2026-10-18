@@ -20,7 +20,7 @@ argDefineBool    "dryRun"               "d" "does not actually request a reboot"
 
 argParse "$@" #parses the actual arguments according to the definitions above
 
-timeOfPassedTest=$(date +%s) # safe baseline
+timeOfPassedTest=$(date +%s) # safe baseline, if a bit pessimistic
 
 index=0
 while read line ; do
