@@ -163,7 +163,7 @@ if [[ $pull -eq 1 ]]; then
   ln -sfn "$base"/current "/scripts" #atomic operation, should keep currently running scripts in old folder undisturbed
   inf "repo downloaded to $dest and deployed to /scripts and $base/current"
 
-  inf === restarting daemons if necessary ===
+  inf === restarting daemons ===
 
   services_changed=0
 
@@ -177,17 +177,12 @@ if [[ $pull -eq 1 ]]; then
     [[ -f "$unit" ]] || continue
 
     # Restart only if the script is newer than the service file.
-    if [[ "$unit" -ot "$script" ]]; then
-        echo "Updated script detected: $script"
-
-        if systemctl restart "$service"; then
-            touch -- "$unit"
-            echo "Restarted $service"
-            services_changed=1
-        else
-            echo "ERROR: Failed to restart $service" >&2
-        fi
+    if systemctl restart "$service"; then
+       vrb "restarted $service"
+    else
+       wrn "Failed to restart $service"
     fi
+    systemctl status "$service"
   done < <(find -H /scripts -type f -executable -print0)
 
   # Notify systemd that unit-file timestamps have changed.
