@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# This script does not use any dependencies by design.
+# The warning about the reboot should therefore come from the requesting script
 set -euo pipefail
 
 # Directory for per-script reboot flags
@@ -9,7 +11,8 @@ request_files=("$REBOOT_DIR"/rebootRequested.*)
 inhibit_files=("$REBOOT_DIR"/rebootInhibited.*)
 
 # Check if there are any requests
-if compgen -G "$REBOOT_DIR/rebootRequested.*" > /dev/null; then
+while : ; do
+  if compgen -G "$REBOOT_DIR/rebootRequested.*" > /dev/null; then
     echo "Reboot requested by:"
     for f in "${request_files[@]}"; do
         [[ -f "$f" ]] && echo "  $(cat "$f")"
@@ -19,15 +22,19 @@ if compgen -G "$REBOOT_DIR/rebootRequested.*" > /dev/null; then
 
     # Wait for inhibitors to disappear, max 600s
     if compgen -G "$REBOOT_DIR/rebootInhibited.*" > /dev/null; then
-        echo "Reboot inhibited, waiting up to 600 seconds..."
+        echo "Reboot inhibited by the following files. Waiting up to 2000 s:"
+        for f in "${request_files[@]}"; do
+           [[ -f "$f" ]] && echo "  $(cat "$f")"
+        done
         waited=0
-        while compgen -G "$REBOOT_DIR/rebootInhibited.*" > /dev/null && [[ $waited -lt 600 ]]; do
+        while compgen -G "$REBOOT_DIR/rebootInhibited.*" > /dev/null && [[ $waited -lt 2000 ]]; do
             sleep 1
             ((waited++))
         done
-
         if compgen -G "$REBOOT_DIR/rebootInhibited.*" > /dev/null; then
             echo "Rebooting anyway after 600 seconds, inhibition still present"
+        else
+            echo "Inhibitors no longer present"
         fi
     fi
 
@@ -47,6 +54,6 @@ if compgen -G "$REBOOT_DIR/rebootRequested.*" > /dev/null; then
     else
         /sbin/reboot -f || /sbin/shutdown -r now
     fi
-else
-    echo "No reboot requested."
-fi
+  fi
+  sleep 15
+done

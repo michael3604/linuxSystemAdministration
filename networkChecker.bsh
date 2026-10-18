@@ -10,6 +10,7 @@ source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
 source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
 source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
 source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
+source $(dirname "$0")/lib/reboot.lib.bsh
 
 argDefineValue   "minUptime"            "u" "mimimum Uptime before reboots are requested in seconds" default=600
 argDefineValue   "checkIntervalRegular" "i" "time between network checks if network is considered good in seconds" default=300
@@ -69,7 +70,7 @@ while : ; do
       if (( upTime > minUptime && now > graceDate )); then
         wrn persistant network failure detected after $(awk '{print int($1)}' /proc/uptime) s of uptime, rebooting
         if $dryRun -ne 0; then
-          touch /run/rebootRequested.$scriptname #ToDo: library
+          rebootRequest
         else
           wrn dryrun, not actually rebooting
         fi

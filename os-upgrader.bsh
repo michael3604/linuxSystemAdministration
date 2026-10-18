@@ -3,7 +3,9 @@
 set -euo pipefail
 source $(dirname "$0")/lib/lock.lib.bsh
 source $(dirname "$0")/lib/messages.lib.bsh
+source $(dirname "$0")/lib/reboot.lib.bsh
 lock
+rebootInhibitor start
 
 needrestart --version > /dev/null || apt install -y needrestart
 
@@ -47,14 +49,16 @@ if [[ "$(hostname -s)" = "main" ]]; then
   done
 fi
 
+rebootInhibitor stop
+
 # Check if a reboot is required
 running=$(uname -r)
 latest=$(ls /boot/vmlinuz-* | sort -V | tail -n1 | xargs -n1 basename | sed 's/^vmlinuz-//')
 if [ "$running" != "$latest" ]; then
     wrn "New kernel $latest installed, running $running. Rebooting..."
-    systemctl reboot
+    rebootRequest
 fi
 if [ -f /var/run/reboot-required ]; then
    wrn "rebooting after package upgrades"
-   systemctl reboot
+   rebootRequest
 fi

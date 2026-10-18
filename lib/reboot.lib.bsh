@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Creates helper functions to request or inhibit reboots.
+
+# Prevent double sourcing
+[[ -n "${__REBOOT_LIB_LOADED:-}" ]] && return 0
+__REBOOT_LIB_LOADED=1
+
+
+rebootRequest() {
+    local scriptname
+    scriptname="$(basename -- "$0")"
+
+    wrn "reboot requested"
+    touch -- "/run/rebootRequested.${scriptname}"
+}
+
+
+rebootInhibitor() {
+    local scriptname type
+    type="${1:-}"
+    scriptname="$(basename -- "$0")"
+
+    case "$type" in
+        start)
+            inf "inhibiting reboot ..."
+            touch -- "/run/rebootInhibited.${scriptname}"
+            [[ -e "/run/rebootInhibited.${scriptname}" ]] ||
+                err "reboot could not be inhibited!"
+            ;;
+
+        stop)
+            inf "removing reboot inhibition"
+            rm -f -- "/run/rebootInhibited.${scriptname}" || true
+            [[ -e "/run/rebootInhibited.${scriptname}" ]] &&
+                wrn "reboot inhibition could not be lifted!"
+            ;;
+
+        *)
+            err "Usage: rebootInhibitor {start|stop}"
+            ;;
+    esac
+}
