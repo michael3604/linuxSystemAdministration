@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#set -x
+
+title="tests if the network is working an reboots the system if not"
+helpText="lorem ipsum salem norum."
+
+source /etc/3604/defaults.conf
+source $(dirname "$0")/lib/lock.lib.bsh # for creating lock files
+source $(dirname "$0")/lib/messages.lib.bsh # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source $(dirname "$0")/lib/success.lib.bsh #creates the success function for writing success files for monitoring
+source $(dirname "$0")/lib/argParser.lib.bsh #parses defined arguments (see arg_define_* below). important: this must come after sourcing messages.lib.bsh
+
+argDefineValue   "minUptime"            "u" "mimimum Uptime before reboots are requested in seconds" default=600
+argDefineValue   "checkIntervalRegular" "i" "time between network checks if network is considered good in seconds" default=300
+argDefineValue   "checkIntervalFailed"  "I" "time between network checks if network is considered broken in seconds" default=300
+argDefineValue   "gracePeriod"          "g" "time the network is allowed to be down before rebooting in seconds" default=300
+argDefineValue   "maxFails"             "f" "how many tests are allowed to fail for test to count as failed" default=1
+argDefineBool    "dryRun"               "d" "does not actually request a reboot"
+
+argParse "$@" #parses the actual arguments according to the definitions above
+
+timeOfPassedTest=$(date +%s) # a bit pessimistic.
+
+index=0
+while read line ; do
+    hosts[$index]="$line"
+    index=$(($index+1))
+done < /etc/3604/linuxServersPhysical
+vrb hosts are "${hosts[@]}"
+
+inf "checking network connection every $checkIntervalRegular s"
+
+while : ; do
+    fails=0 #reset
+
+    vrb === check router ===
+
+    # find router
+    router="$(ip -4 route show default | awk 'NR==1 {print $3}')"
+    if [[ -z "$router" ]]; then
+      wrn "No network interface or default gateway found"
+      fails=$fails+1
+    fi
+    vrb "Router: $router"
+
+    # ping router
+    if ping -c 1 -W 2 "$router" >/dev/null 2>&1; then
+      vrb "Router responds to ping"
+    else
+      wrn "Router does not respond to ping"
+      fails=$fails+1
+    fi
+
+    vrb === check SSH connections ===
+
+    for host in "${hosts[@]}"; do
+      if timeout 5 ssh-keyscan -T 3 -p 22 $host 2>/dev/null | grep -q .; then
+        vrb "SSH server on $host reachable"
+      else
+        inf "SSH server on $host not reachable"
+        fails=$fails+1
+      fi
+    done
+    if (( $fails > $maxFails )); then
+      upTime=$(( $(awk '{print int($1)}' /proc/uptime) ))
+      now=$(date +%s)
+      graceDate=$(($timeOfPassedTest + $gracePeriod))
+      if (( upTime > minUptime && now > graceDate )); then
+        wrn persistant network failure detected after $(awk '{print int($1)}' /proc/uptime) s of uptime, rebooting
+        if $dryRun -ne 0; then
+          touch /run/rebootRequested.$scriptname #ToDo: library
+        else
+          wrn dryrun, not actually rebooting
+        fi
+      fi
+      inf "network connection seems broken for $(( $(date +%s) - timeOfPassedTest )) s, retrying in $checkIntervalFailed s"
+      sleep $checkIntervalFailed
+    else
+      timeOfPassedTest=$(date +%s)
+      vrb "network connection seems good, rechecking in $checkIntervalRegular s"
+      sleep $checkIntervalRegular
+    fi
+
+done
