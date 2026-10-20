@@ -86,7 +86,7 @@ inf === backup of scripts, emails and calendar ===
 sudo rsync -av --delete /scripts/               /mnt/external-HDD/data/scripts
 sudo rsync -av --delete /tank/backup/email/     /mnt/external-HDD/data/email
 sudo rm -rf /mnt/external-HDD/google || true
-sudo rsync -av --delete /tank/backup/calendar/  /mnt/external-HDD/data/calendar
+sudo rsync -av --delete /tank/backup/calendars/ /mnt/external-HDD/data/calendars
 
 # scrub if required
 # move scrub/unmount until after OS upgrade.
