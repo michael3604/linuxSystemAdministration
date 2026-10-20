@@ -78,7 +78,7 @@ if [[ -f /mnt/external-HDD/bigDisk ]]; then
     sudo rsync -av --delete "$source"/ /mnt/external-HDD/data/mediaPool
 else
     inf "small disk detected, making backup of most recent files of media pool."
-    sudo sudo rsync -av --delete --mkpath --exclude media/ "$source"/ /mnt/external-HDD/data/mediaPool # backup everything but "media"
+    sudo rsync -av --delete --mkpath --exclude media/ "$source"/ /mnt/external-HDD/data/mediaPool # backup everything but "media"
     sudo rsync -av --delete --mkpath "$source"/media/2025/ /mnt/external-HDD/data/mediaPool/media/2025
     sudo rsync -av --delete --mkpath "$source"/media/2026/ /mnt/external-HDD/data/mediaPool/media/2026
 fi
