@@ -82,9 +82,11 @@ else
     sudo rsync -av --delete --mkpath "$source"/media/2025/ /mnt/external-HDD/data/mediaPool/media/2025
     sudo rsync -av --delete --mkpath "$source"/media/2026/ /mnt/external-HDD/data/mediaPool/media/2026
 fi
-inf === backup of scripts and google ===
-sudo rsync -av --delete /scripts/            /mnt/external-HDD/data/scripts
-sudo rsync -av --delete /tank/backup/google/ /mnt/external-HDD/data/google
+inf === backup of scripts, emails and calendar ===
+sudo rsync -av --delete /scripts/               /mnt/external-HDD/data/scripts
+sudo rsync -av --delete /tank/backup/email/     /mnt/external-HDD/data/email
+sudo rm -rf /mnt/external-HDD/google || true
+sudo rsync -av --delete /tank/backup/calendar/  /mnt/external-HDD/data/calendar
 
 # scrub if required
 # move scrub/unmount until after OS upgrade.
