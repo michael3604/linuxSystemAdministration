@@ -75,7 +75,7 @@ inf "downloading Lenas iCloud"
 ( sudo -u user76 /snap/bin/lxc exec mainICloudPD -- sudo -u lena /home/lena/iCloudPDDownloader.bsh )  || wrn "lenas icloud error. 2FA reset required?"
 inf "mail archive and calendar backup"
 
-( sudo -u user76 /snap/bin/lxc start mainEmailGetter)
+( sudo -u user76 /snap/bin/lxc start mainEmailGetter) && sleep 1 # add short sleep to allow for proper startup
 ( sudo -u user76 /snap/bin/lxc exec mainEmailGetter -- /scripts/emailGetter.bsh )
 ( sudo -u user76 /snap/bin/lxc exec mainEmailGetter -- /scripts/os-upgrader.bsh ) ### ToDo: check for errors
 ( sudo -u user76 /snap/bin/lxc stop mainEmailGetter)
