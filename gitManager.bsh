@@ -182,7 +182,7 @@ if [[ $pull -eq 1 ]]; then
     else
        wrn "Failed to restart $service"
     fi
-    systemctl status "$service"
+    systemctl status "$service" || true 
   done < <(find -H /scripts -type f -executable -print0)
 
   # Notify systemd that unit-file timestamps have changed.
@@ -201,6 +201,7 @@ if [[ $prune -eq 1 ]] ; then
   ls -1dt "$base"/*/ | tail -n +6 | while read -r d; do
     if [[ $(stat -c %Y "$d") -lt $(date -d '22 days ago' +%s) ]]; then
       inf "Removing $d"
+      chattr -i "$d"
       rm -rf -- "$d"
     fi
   done

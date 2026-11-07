@@ -69,7 +69,7 @@ while : ; do
       graceDate=$(($timeOfPassedTest + $gracePeriod))
       if (( upTime > minUptime && now > graceDate )); then
         wrn persistant network failure detected after $(awk '{print int($1)}' /proc/uptime) s of uptime, rebooting
-        if $dryRun -ne 0; then
+        if (( dryRun == 0 )); then
           rebootRequest
         else
           wrn dryrun, not actually rebooting
