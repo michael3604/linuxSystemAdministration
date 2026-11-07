@@ -265,12 +265,12 @@ cmd_backup() {
             inf "$REPO_DATA::$ARCHIVE already exists — assuming completed"
             break
         fi
+        rc=0
         borg create \
             "${BORG_OPTS_COMMON[@]}" \
             "$REPO_DATA::$ARCHIVE" \
             "$MOUNT_BASE" \
-            --exclude "$MOUNT_MEDIA/media" 
-        rc=$?
+            --exclude "$MOUNT_MEDIA/media" || rc=$?
         case $rc in
           0|1)
           success data
@@ -303,13 +303,13 @@ cmd_backup() {
         inf "$REPO_MEDIA::$ARCHIVE already exists — assuming completed"
         break
     fi
+    rc=0
     borg create \
         "${BORG_OPTS_COMMON[@]}" \
         --files-cache=mtime,size \
         --checkpoint-interval 1800 \
         "$REPO_MEDIA::$ARCHIVE" \
-        "$MOUNT_MEDIA/media"
-        rc=$?
+        "$MOUNT_MEDIA/media" || rc=$?
         case $rc in
           0|1)
             success media

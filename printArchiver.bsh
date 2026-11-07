@@ -30,6 +30,6 @@ fi
 inf copying printjobs
 rsync -av "$source" "$target"
 inf "deleting local print jobs older than ""$retention"" days."
-find "$source" -maxdepth 1 -mindepth 1 -type f -mmin -mmin -"$retention" -delete
+find "$source" -maxdepth 1 -mindepth 1 -type f -mmin +"$retention" -delete
 
 success #writes the successfile

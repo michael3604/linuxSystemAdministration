@@ -26,11 +26,17 @@ while : ; do
         for f in "${request_files[@]}"; do
            [[ -f "$f" ]] && echo "  $(cat "$f")"
         done
-        waited=0
-        while compgen -G "$REBOOT_DIR/rebootInhibited.*" > /dev/null && [[ $waited -lt 2000 ]]; do
-            sleep 1
-            ((waited++))
-        done
+	waited=0
+	while compgen -G "$REBOOT_DIR/rebootInhibited.*" > /dev/null && (( waited < 2000 )); do
+    	   if (( waited % 300 == 0 )); then
+              echo "waiting for inhibitors (${waited}s so far):"
+              for f in "$REBOOT_DIR"/rebootInhibited.*; do
+                 [[ -e "$f" ]] && echo "  ${f##*/rebootInhibited.}"
+              done
+    	   fi
+    	   sleep 1
+    	   waited=$((waited+1))
+	done
         if compgen -G "$REBOOT_DIR/rebootInhibited.*" > /dev/null; then
             echo "Rebooting anyway after 600 seconds, inhibition still present"
         else
