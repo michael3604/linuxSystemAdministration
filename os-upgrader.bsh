@@ -13,10 +13,9 @@ needrestart --version > /dev/null || apt install -y needrestart
 if [ "$(systemd-detect-virt --container 2>/dev/null)" = "lxc" ]; then
     inf "Running in LXC, skipping upgrade of scripts"
 else
+    inf "upgrading linux system admin scripts"
     /scripts/gitManager.bsh -g
 fi
-
-#ToDo: docker
 
 # update LXD
 if [[ "$(hostname -s)" = "main" ]]; then
@@ -26,6 +25,10 @@ if [[ "$(hostname -s)" = "main" ]]; then
     inf "--- updating "$i" ---"
     sudo -u user76 /snap/bin/lxc exec $i -- timeout 10m apt-get update
   done
+
+  /scripts/immichUpgrader.bsh || true #force true to continue system upgrade even if there is a problem with immich
+  inf pruning docker images
+  docker image prune -f # -f: no confirmation prompt (would hang without a TTY)
 fi
 
 inf "--- upgrading "$(hostname -s)" ---"

@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#set -x
+
+title="Upgrades Immich (docker compose pull/up) with health checks before and after."
+helpText="Waits until all Immich services are running and healthy, pulls new images, restarts the stack, verifies health again. Aborts with an error if Immich does not become healthy."
+
+source /etc/3604/defaults.conf
+source "$(dirname "$0")/lib/lock.lib.bsh"       # for creating lock files
+source "$(dirname "$0")/lib/messages.lib.bsh"   # creates functions inf, vrb, wrn, and err for different messaging and logging types
+source "$(dirname "$0")/lib/success.lib.bsh"    # creates the success function for writing success files for monitoring
+source "$(dirname "$0")/lib/reboot.lib.bsh"     # creates reboot handler functions: rebootInhibitor start, rebootInhibitor stop
+source "$(dirname "$0")/lib/argParser.lib.bsh"  # parses defined arguments (see argDefine* below). important: this must come after sourcing messages.lib.bsh
+
+argParse "$@" # parses the actual arguments according to the definitions above
+
+composeFile="/home/user76/immich-app/docker-compose.yml"
+
+dc() {
+    docker compose -f "$composeFile" "$@"
+}
+
+# waitHealthy <context>
+# Polls every 10 s until every service defined in the compose file has a
+# container that is "running" and "healthy".
+# Warns after ~60 s, aborts via err after ~200 s.
+waitHealthy() {
+    local context="$1"
+    local i=0 expected status problems svc line
+
+    while true; do
+        expected=$(dc config --services) || err "$context: cannot read compose file $composeFile"
+        [[ -n "$expected" ]]             || err "$context: compose file defines no services"
+        status=$(dc ps -a --format '{{.Service}} {{.State}} {{.Health}}') || err "$context: docker compose ps failed"
+
+        problems=""
+        for svc in $expected; do
+            line=$(grep "^$svc " <<<"$status" || true)
+            [[ "$line" == "$svc running healthy" ]] || problems+="${line:-$svc no-container}; "
+        done
+
+        if [[ -z "$problems" ]]; then
+            if (( i > 0 )); then
+                inf "$context: immich has recovered, continuing"
+            else
+                inf "$context: all immich containers are healthy"
+            fi
+            return 0
+        fi
+
+        case "$i" in
+            0)  inf "$context: waiting for docker containers to become healthy: $problems" ;;
+            6)  wrn "$context: immich containers do not seem healthy: $problems" ;;
+            20) err "$context: immich containers have not recovered, aborting: $problems" ;;
+        esac
+
+        sleep 10
+        i=$((i + 1))
+    done
+}
+
+lock
+rebootInhibitor start
+
+inf "checking whether immich is running healthily"
+waitHealthy "pre-upgrade"
+
+inf "pulling images"
+dc pull --quiet
+inf "recreating changed containers"
+dc up -d
+
+waitHealthy "post-upgrade"
+
+inf "pruning unused images"
+#docker image prune -f > /dev/null    # -f: no confirmation prompt (would hang without a TTY)
+
+rebootInhibitor stop
+
+success # writes the success file
