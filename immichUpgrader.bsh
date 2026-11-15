@@ -70,11 +70,20 @@ dc pull --quiet
 inf "recreating changed containers"
 dc up -d
 
+rebootInhibitor stop
+
 waitHealthy "post-upgrade"
 
-inf "pruning unused images"
-#docker image prune -f > /dev/null    # -f: no confirmation prompt (would hang without a TTY)
+inf "checking for new major version"
+running=$(curl -fsS --max-time 20 http://localhost:2283/api/server/version | jq -er .major)
+tag=$(curl -fsS --max-time 20 https://api.github.com/repos/immich-app/immich/releases/latest | jq -er .tag_name)
+latest=${tag#v}; latest=${latest%%.*}
 
-rebootInhibitor stop
+if (( latest > running )); then
+  wrn "Immich $tag is available (running major v$running)."
+else
+  inf "Immich is running the latest major version v$running."
+fi
+
 
 success # writes the success file
