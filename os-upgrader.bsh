@@ -53,7 +53,10 @@ rebootInhibitor stop
 
 # Check if a reboot is required
 running=$(uname -r)
+vrb "Installed kernel version: $running" 
 latest=$(ls /boot/vmlinuz-* | sort -V | tail -n1 | xargs -n1 basename | sed 's/^vmlinuz-//')
+vrb "Vailabele kernel version: $latest"
+
 if [ "$running" != "$latest" ]; then
     wrn "New kernel $latest installed, running $running. Rebooting..."
     rebootRequest

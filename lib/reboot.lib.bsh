@@ -24,15 +24,17 @@ rebootInhibitor() {
         start)
             inf "inhibiting reboot ..."
             touch -- "/run/rebootInhibited.${scriptname}"
-            [[ -e "/run/rebootInhibited.${scriptname}" ]] ||
+            if ! [[ -e "/run/rebootInhibited.${scriptname}" ]] ; then
                 err "reboot could not be inhibited!"
+            fi
             ;;
 
         stop)
             inf "removing reboot inhibition"
             rm -f -- "/run/rebootInhibited.${scriptname}" || true
-            [[ -e "/run/rebootInhibited.${scriptname}" ]] &&
+            if [[ -e "/run/rebootInhibited.${scriptname}" ]] ; then
                 wrn "reboot inhibition could not be lifted!"
+            fi
             ;;
 
         *)
