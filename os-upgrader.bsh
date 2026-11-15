@@ -4,6 +4,7 @@ set -euo pipefail
 source $(dirname "$0")/lib/lock.lib.bsh
 source $(dirname "$0")/lib/messages.lib.bsh
 source $(dirname "$0")/lib/reboot.lib.bsh
+source $(dirname "$0")/lib/success.lib.bsh
 lock
 rebootInhibitor start
 
@@ -65,3 +66,5 @@ if [ -f /var/run/reboot-required ]; then
    wrn "rebooting after package upgrades"
    rebootRequest
 fi
+
+success
