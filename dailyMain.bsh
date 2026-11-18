@@ -82,7 +82,7 @@ inf "mail archive and calendar backup"
 
 ( sudo -u user76 /snap/bin/lxc exec mainSupport -- /scripts/wgetDownloader.bsh --listPath "/root/calendars.txt" ) || wrn "calendar backup failed"
 
-### ToDo: download calendar
+( sudo -u user76 timeout 3600 /snap/bin/lxc exec mainEmailArchive -- sh -c 'for d in /var/email/*/; do u=$(basename "$d"); echo "== $u"; doveadm index -u "$u" "*" || echo "FAILED: $u"; done' ) || wrn "Email archive full text search failed!"
 
 inf "verifiying google Backup"
 /scripts/emailBackupValidator.bsh
