@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-
+fstrim -v /mnt/external-HDD || true #triming data, ideally aditionally to discad=async
 sudo umount /mnt/external-HDD || true
 sudo cryptsetup luksClose backup-data || true
 if ! mountpoint -q /mnt/external-HDD ; then
