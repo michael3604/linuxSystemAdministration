@@ -69,7 +69,6 @@ find "/tank/mediaPool/Lightroom/Lightroom Catalogue Backups/" -maxdepth 1 -name 
     inf removing "$dir"
     rm -rf "$dir"
 done
-/scripts/systemBackupPruner.bsh
 /scripts/recordings-cleaner.bsh
 inf "downloading Lenas iCloud"
 ( sudo -u user76 /snap/bin/lxc exec mainICloudPD -- sudo -u lena /home/lena/iCloudPDDownloader.bsh )  || wrn "lenas icloud error. 2FA reset required?"
